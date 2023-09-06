@@ -11,10 +11,21 @@
       }
 
       async function start() {
-        const up = document.getElementById("up");
-        const down = document.getElementById("down");
-        const left = document.getElementById("left");
-        const right = document.getElementById("right");
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowUp") {
+            sendCommand("UP");
+          }
+          if (event.key === "ArrowDown") {
+            sendCommand("DOWN");
+          }
+          if (event.key === "ArrowLeft") {
+            sendCommand("LEFT");
+          }
+          if (event.key === "ArrowRight") {
+            sendCommand("RIGHT");
+          }
+        });
+
         const peerConnection = new RTCPeerConnection();
 
         // Create a data channel
@@ -92,10 +103,10 @@
   </head>
   <body>
     <button onclick="start()">Start</button>
-    <button id="up" disabled onclick="sendCommand('UP')">UP</button>
+    <!-- <button id="up" disabled onclick="sendCommand('UP')">UP</button>
     <button id="down" disabled onclick="sendCommand('DOWN')">DOWN</button>
     <button id="left" disabled onclick="sendCommand('LEFT')">LEFT</button>
-    <button id="right" disabled onclick="sendCommand('RIGHT')">RIGHT</button>
+    <button id="right" disabled onclick="sendCommand('RIGHT')">RIGHT</button> -->
     <video id="video" autoplay></video>
   </body>
 </html>

@@ -1,10 +1,16 @@
 package game
 
+import "math/rand"
+
 type Direction string
 
 type Position struct {
 	X int
 	Y int
+}
+
+func (p *Position) Equal(other Position) bool {
+	return p.X == other.X && p.Y == other.Y
 }
 
 const (
@@ -15,11 +21,13 @@ const (
 )
 
 type GameState struct {
-	id             int64
 	snakeDirection Direction
 	snakeSize      int
-	snakePosition  Position
+	snake          []Position
 	matrix         [][]int
+	rows           int
+	cols           int
+	foodPosition   Position
 }
 
 func (g *GameState) At(pos Position) int {
@@ -30,66 +38,122 @@ func (g *GameState) SetAt(pos Position, value int) {
 	g.matrix[pos.Y][pos.X] = value
 }
 
-func (g *GameState) IncrementId() {
-	g.id++
+func (g *GameState) LastSnakePart() Position {
+	return g.snake[len(g.snake)-1]
+}
+
+func (g *GameState) IsHeadingUp() bool {
+	return g.snakeDirection == UP
+}
+
+func (g *GameState) IsHeadingDown() bool {
+	return g.snakeDirection == DOWN
+}
+
+func (g *GameState) IsHeadingLeft() bool {
+	return g.snakeDirection == LEFT
+}
+
+func (g *GameState) IsHeadingRight() bool {
+	return g.snakeDirection == RIGHT
+}
+
+func (g *GameState) GenerateFood() {
+	randomX := rand.Intn(g.cols)
+	randomY := rand.Intn(g.rows)
+	position := Position{X: randomX, Y: randomY}
+	if g.At(position) != 0 {
+		g.GenerateFood()
+		return
+	}
+
+	g.foodPosition = Position{X: randomX, Y: randomY}
+	g.SetAt(g.foodPosition, 3)
+}
+
+func (g *GameState) Move() bool {
+	headPos := g.snake[0]
+	g.SetAt(headPos, 2)
+	switch g.snakeDirection {
+	case UP:
+		headPos.Y = (headPos.Y - 1 + g.rows) % g.rows
+	case DOWN:
+		headPos.Y = (headPos.Y + 1) % g.rows
+	case LEFT:
+		headPos.X = (headPos.X - 1 + g.cols) % g.cols
+	case RIGHT:
+		headPos.X = (headPos.X + 1) % g.cols
+	default:
+		return true
+	}
+
+	if g.At(headPos) == 2 {
+		return true
+	}
+
+	if headPos.Equal(g.foodPosition) {
+		g.snakeSize++
+		g.GenerateFood()
+	}
+
+	g.SetAt(headPos, 1)
+	g.SetAt(g.LastSnakePart(), 0)
+	g.snake = append([]Position{headPos}, g.snake[:g.snakeSize-1]...)
+
+	return false
+}
+
+func validateNewDirection(state *GameState, newDirection Direction) bool {
+	if state.IsHeadingUp() && newDirection == DOWN {
+		return false
+	}
+	if state.IsHeadingDown() && newDirection == UP {
+		return false
+	}
+	if state.IsHeadingLeft() && newDirection == RIGHT {
+		return false
+	}
+	if state.IsHeadingRight() && newDirection == LEFT {
+		return false
+	}
+	return true
 }
 
 func updateGameState(state *GameState, command *string) bool {
-	state.IncrementId()
-	if command != nil {
+	if command != nil && validateNewDirection(state, Direction(*command)) {
 		state.snakeDirection = Direction(*command)
 	}
 
-	newPos := calculateNextPosition(state.snakePosition, state.snakeDirection, len(state.matrix), len(state.matrix[0]))
-	state.SetAt(newPos, 1)
-	state.SetAt(state.snakePosition, 0)
+	collided := state.Move()
 
-	state.snakePosition = newPos
-
-	return true
-
-	// switch state.matrix[newPos.Y][newPos.X] {
-	// case 0: // Empty space
-	// 	state.matrix[newPos.Y][newPos.X] = 1
-	// 	moveSnakeBody(state, newPos) // Move the snake body including the new part
-	// 	state.snakePosition = newPos
-	// case 3: // Food
-	// 	state.matrix[newPos.Y][newPos.X] = 1
-	// 	state.snakeSize++
-	// 	generateFood(state)
-	// default:
-	// 	return false // Snake collided with itself, game over
-	// }
-
-	// return true
+	return !collided
 }
 
 func NewGameState(rows, cols int) *GameState {
-	matrix := make([][]int, cols)
+	matrix := make([][]int, rows)
 	for i := range matrix {
-		matrix[i] = make([]int, rows)
+		matrix[i] = make([]int, cols)
 	}
-	snakePos := Position{X: cols / 2, Y: rows / 2}
-	matrix[snakePos.Y][snakePos.X] = 1
-	return &GameState{
-		snakeDirection: RIGHT,
-		snakeSize:      1,
-		snakePosition:  snakePos,
-		matrix:         matrix,
-	}
-}
+	headPos := Position{X: cols / 2, Y: rows / 2}
+	snake := []Position{headPos}
 
-func calculateNextPosition(currentPos Position, direction Direction, rows, cols int) Position {
-	switch direction {
-	case UP:
-		return Position{X: currentPos.X, Y: (currentPos.Y - 1 + rows) % rows}
-	case DOWN:
-		return Position{X: currentPos.X, Y: (currentPos.Y + 1) % rows}
-	case LEFT:
-		return Position{X: (currentPos.X - 1 + cols) % cols, Y: currentPos.Y}
-	case RIGHT:
-		return Position{X: (currentPos.X + 1) % cols, Y: currentPos.Y}
-	default:
-		return currentPos
+	state := &GameState{
+		snakeDirection: RIGHT,
+		snakeSize:      3,
+		matrix:         matrix,
+		rows:           rows,
+		cols:           cols,
 	}
+
+	state.GenerateFood()
+
+	for i := 1; i < state.snakeSize; i++ {
+		bodyPos := Position{Y: headPos.Y, X: headPos.X - i}
+		snake = append(snake, bodyPos)
+		state.SetAt(bodyPos, 2)
+	}
+	state.snake = snake
+	state.SetAt(headPos, 1)
+
+	return state
 }

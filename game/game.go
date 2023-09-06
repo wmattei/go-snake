@@ -22,27 +22,30 @@ func StartGameLoop(frameChannel chan []byte, commandChannel chan string, closeSi
 
 	for {
 		select {
-		case <-closeSignal:
-			return // Exiting the loop on close signal
 		case <-frameTicker.C:
 			handleFrameUpdate(gameState, frameChannel)
 		case <-gameUpdateTicker.C:
-			handleGameLogicUpdate(gameState, commandChannel)
+			handleGameLogicUpdate(gameState, commandChannel, closeSignal)
 		}
 	}
 }
 
 func handleFrameUpdate(gameState *GameState, frameChannel chan []byte) {
 	if constants.SHOULD_RENDER_FRAME {
-		go RenderFrame(*gameState, frameChannel)
+		frame := RenderFrame(*gameState)
+		frameChannel <- frame
 	}
 }
 
-func handleGameLogicUpdate(gameState *GameState, commandChannel chan string) {
+func handleGameLogicUpdate(gameState *GameState, commandChannel chan string, closeSignal chan bool) {
 	select {
 	case command := <-commandChannel:
-		updateGameState(gameState, &command)
+		if !updateGameState(gameState, &command) {
+			closeSignal <- true
+		}
 	default:
-		updateGameState(gameState, nil)
+		if !updateGameState(gameState, nil) {
+			closeSignal <- true
+		}
 	}
 }

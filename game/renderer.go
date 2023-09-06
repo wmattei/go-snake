@@ -15,8 +15,9 @@ func drawRectangle(img *image.RGBA, min, max image.Point, col color.RGBA) {
 	}
 }
 
-func RenderFrame(gameState GameState, frameChannel chan []byte) {
-	// fmt.Println("Game logic update. Id: ", gameState.id, "Direction:", gameState.snakeDirection)
+func RenderFrame(gameState GameState) []byte {
+
+	// fmt.Println("Rendering frame. Game over: ", gameOver)
 	img := image.NewRGBA(image.Rect(0, 0, constants.FRAME_WIDTH, constants.FRAME_HEIGHT))
 	// Loop through the game matrix and render each element as a colored box
 	for y := 0; y < len(gameState.matrix); y++ {
@@ -47,5 +48,5 @@ func RenderFrame(gameState GameState, frameChannel chan []byte) {
 		}
 	}
 
-	frameChannel <- rawRGBData
+	return rawRGBData
 }

@@ -16,7 +16,6 @@ func handleError(err error) {
 }
 
 func main() {
-	closeSignal := make(chan bool)
 
 	comm := communication.WebRTCCommunication{}
 	err := comm.Initialize()
@@ -37,6 +36,7 @@ func main() {
 	}()
 
 	frameChannel := make(chan []byte)
+	closeSignal := make(chan bool)
 	go game.StartGameLoop(frameChannel, commandChannel, closeSignal)
 	go stream.StreamFrame(frameChannel, closeSignal)
 
