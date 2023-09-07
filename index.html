@@ -1,112 +1,11 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <script>
-      /** @type {RTCDataChannel} */
-      let dataCannel;
-
-      function sendCommand(command) {
-        console.log(command);
-        dataChannel.send(JSON.stringify({ type: "command", data: command }));
-      }
-
-      async function start() {
-        document.addEventListener("keydown", (event) => {
-          if (event.key === "ArrowUp") {
-            sendCommand("UP");
-          }
-          if (event.key === "ArrowDown") {
-            sendCommand("DOWN");
-          }
-          if (event.key === "ArrowLeft") {
-            sendCommand("LEFT");
-          }
-          if (event.key === "ArrowRight") {
-            sendCommand("RIGHT");
-          }
-        });
-
-        const peerConnection = new RTCPeerConnection();
-
-        // Create a data channel
-        dataChannel = peerConnection.createDataChannel("commandsChannel");
-
-        dataChannel.onerror = (error) => {
-          console.log("Error:", error);
-        };
-
-        // peerConnection.ondatachannel = (d) => {
-        dataChannel.onopen = () => {
-          console.log("open");
-          up.disabled = false;
-          down.disabled = false;
-          left.disabled = false;
-          right.disabled = false;
-        };
-        // };
-
-        // Create an offer to start the peer connection
-        const offer = await peerConnection.createOffer({
-          offerToReceiveVideo: true,
-        });
-        await peerConnection.setLocalDescription(offer);
-
-        // Send the offer to the Go client through WebSocket signaling
-        const signalingChannel = new WebSocket("ws://localhost:4000/ws");
-
-        const candidates = [];
-
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            candidates.push(event.candidate.toJSON());
-          }
-        };
-
-        signalingChannel.addEventListener("open", () => {
-          signalingChannel.send(
-            JSON.stringify({ type: "offer", data: offer.sdp })
-          );
-          candidates.forEach((candidate) => {
-            signalingChannel.send(
-              JSON.stringify({
-                type: "ice",
-                data: candidate.candidate,
-              })
-            );
-          });
-        });
-
-        signalingChannel.addEventListener("message", async (event) => {
-          const message = JSON.parse(event.data);
-          if (message.type === "ice") {
-            const iceCandidate = new RTCIceCandidate({
-              ...message.data,
-              sdpMLineIndex: 0,
-              sdpMid: "0",
-            });
-            try {
-              await peerConnection.addIceCandidate(iceCandidate);
-            } catch (error) {
-              console.log(error);
-            }
-          }
-          if (message.type === "answer") {
-            const remoteDescription = new RTCSessionDescription({
-              sdp: message.data,
-              type: "answer",
-            });
-            await peerConnection.setRemoteDescription(remoteDescription);
-          }
-        });
-      }
-    </script>
+    <script src="./index.js"></script>
   </head>
   <body>
-    <button onclick="start()">Start</button>
-    <!-- <button id="up" disabled onclick="sendCommand('UP')">UP</button>
-    <button id="down" disabled onclick="sendCommand('DOWN')">DOWN</button>
-    <button id="left" disabled onclick="sendCommand('LEFT')">LEFT</button>
-    <button id="right" disabled onclick="sendCommand('RIGHT')">RIGHT</button> -->
+    <button id="start_btn">Start</button>
     <video id="video" autoplay></video>
+    <button id="stop_btn">Stop</button>
   </body>
 </html>
