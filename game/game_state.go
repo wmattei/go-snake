@@ -30,6 +30,10 @@ type GameState struct {
 	foodPosition   Position
 }
 
+func (g *GameState) GetMatrix() [][]int {
+	return g.matrix
+}
+
 func (g *GameState) At(pos Position) int {
 	return g.matrix[pos.Y][pos.X]
 }

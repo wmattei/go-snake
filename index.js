@@ -16,6 +16,8 @@ window.onload = async function () {
   stopBtn.addEventListener("click", stop);
 
   videoElement = document.getElementById("video");
+
+  keyBindings();
 };
 
 function stop() {
@@ -25,7 +27,7 @@ function stop() {
 
 async function start() {
   signalingChannel = new WebSocket("ws://localhost:4000/ws");
-  keyBindings();
+  
   signalingChannel.addEventListener("open", async () => {
     peerConnection = new RTCPeerConnection();
     createDataChannel(peerConnection);

@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/pion/webrtc/v3"
 
+	"github.com/wmattei/go-snake/encoder"
 	"github.com/wmattei/go-snake/game"
+	"github.com/wmattei/go-snake/renderer"
 	"github.com/wmattei/go-snake/snake_webrtc"
 	"github.com/wmattei/go-snake/stream"
 )
@@ -19,12 +22,31 @@ func main() {
 
 		pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 			fmt.Println("Data channel established")
-			commandChannel := make(chan string)
-			frameChannel := make(chan []byte)
 			closeSignal := make(chan bool)
 
-			go game.StartGameLoop(frameChannel, commandChannel, closeSignal)
-			go stream.StreamFrame(frameChannel, closeSignal, track)
+			commandChannel := make(chan string)
+			gameStateCh := make(chan *game.GameState)
+			pixelCh := make(chan []byte)
+			encodedFrameCh := make(chan []byte)
+
+			// Is this the best approach for multi-tasking? COULD BE LOL
+			go game.StartGameLoop(commandChannel, gameStateCh, closeSignal)
+			go renderer.StartFrameRenderer(gameStateCh, pixelCh)
+			go encoder.StartEncoder(pixelCh, encodedFrameCh)
+			go stream.StartStreaming(encodedFrameCh, track)
+
+			go func() {
+				<-closeSignal
+				fmt.Println("Closing peer connection")
+				close(gameStateCh)
+				close(commandChannel)
+				close(pixelCh)
+
+				time.Sleep(1 * time.Second)
+				close(encodedFrameCh)
+				dc.Close()
+				pc.Close()
+			}()
 
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				var message snake_webrtc.Message

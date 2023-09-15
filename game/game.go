@@ -1,48 +1,40 @@
 package game
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/wmattei/go-snake/constants"
 )
 
 var (
-	gameUpdateRate = time.Second / constants.GAME_SPEED
-	frameRate      = time.Second / constants.FPS
+	frameRate = time.Second / constants.FPS
 )
 
-func StartGameLoop(frameChannel chan []byte, commandChannel chan string, closeSignal chan bool) {
+func StartGameLoop(commandChannel chan string, gameStateCh chan *GameState, closeSignal chan bool) {
 	frameTicker := time.NewTicker(frameRate)
 	defer frameTicker.Stop()
-
-	gameUpdateTicker := time.NewTicker(gameUpdateRate)
-	defer gameUpdateTicker.Stop()
 
 	gameState := NewGameState(constants.ROWS, constants.COLS)
 
 	for {
 		select {
 		case command := <-commandChannel:
-			fmt.Println("Updating game state with command:", command)
-			if !updateGameState(gameState, &command) {
+			gameOver := !updateGameState(gameState, &command)
+			if gameOver {
+				frameTicker.Stop()
 				closeSignal <- true
+				break
 			}
+			gameStateCh <- gameState
 
 		case <-frameTicker.C:
-			handleFrameUpdate(gameState, frameChannel)
-
-		case <-gameUpdateTicker.C:
-			if !updateGameState(gameState, nil) {
+			gameOver := !updateGameState(gameState, nil)
+			if gameOver {
+				frameTicker.Stop()
 				closeSignal <- true
+				break
 			}
+			gameStateCh <- gameState
 		}
-	}
-}
-
-func handleFrameUpdate(gameState *GameState, frameChannel chan []byte) {
-	if constants.SHOULD_RENDER_FRAME {
-		frame := RenderFrame(gameState)
-		frameChannel <- frame
 	}
 }
