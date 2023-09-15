@@ -7,27 +7,21 @@ let peerConnection;
 let signalingChannel;
 
 let videoElement;
+let welcomePanelElement;
 
 window.onload = async function () {
   const startBtn = document.getElementById("start_btn");
   startBtn.addEventListener("click", start);
 
-  const stopBtn = document.getElementById("stop_btn");
-  stopBtn.addEventListener("click", stop);
-
   videoElement = document.getElementById("video");
+  welcomePanelElement = document.getElementById("welcome_panel");
 
   keyBindings();
 };
 
-function stop() {
-  dataChannel.close();
-  peerConnection.close();
-}
-
 async function start() {
   signalingChannel = new WebSocket("ws://localhost:4000/ws");
-  
+
   signalingChannel.addEventListener("open", async () => {
     peerConnection = new RTCPeerConnection();
     createDataChannel(peerConnection);
@@ -38,17 +32,14 @@ async function start() {
     const offer = await peerConnection.createOffer({
       offerToReceiveVideo: true,
     });
-    console.log("Setting local description...");
     await peerConnection.setLocalDescription(offer);
 
-    console.log("Sending offer...");
     signalingChannel.send(JSON.stringify({ type: "offer", data: offer.sdp }));
   });
 
   signalingChannel.addEventListener("message", async (event) => {
     const message = JSON.parse(event.data);
     if (message.type === "ice") {
-      console.log("Received ICE from server");
       const iceCandidate = new RTCIceCandidate({
         ...message.data,
         sdpMLineIndex: 0,
@@ -61,7 +52,6 @@ async function start() {
       }
     }
     if (message.type === "answer") {
-      console.log("Received answer from server, setting remote description...");
       const remoteDescription = new RTCSessionDescription({
         sdp: message.data,
         type: "answer",
@@ -72,15 +62,16 @@ async function start() {
 }
 
 const handleTrackEvent = (event) => {
-  console.log(event);
   if (event.track.kind === "video") {
+    videoElement.style.display = "block";
+    welcomePanelElement.style.display = "none";
+
     videoElement.srcObject = event.streams[0];
   }
 };
 
 const handleIceCandidateEvent = (event) => {
   if (event.candidate) {
-    console.log("Sending ice candidate to server...");
     signalingChannel.send(
       JSON.stringify({
         type: "ice",
@@ -103,7 +94,10 @@ function createDataChannel(peerConnection) {
   };
 
   dataChannel.onclose = () => {
-    console.log("Data channel is closed");
+    setTimeout(() => {
+      videoElement.style.display = "none";
+      welcomePanelElement.style.display = "flex";
+    }, 1000);
   };
 }
 

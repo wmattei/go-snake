@@ -38,14 +38,15 @@ func main() {
 			go func() {
 				<-closeSignal
 				fmt.Println("Closing peer connection")
+				dc.Close()
+				pc.Close()
+
 				close(gameStateCh)
 				close(commandChannel)
 				close(pixelCh)
 
 				time.Sleep(1 * time.Second)
 				close(encodedFrameCh)
-				dc.Close()
-				pc.Close()
 			}()
 
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
