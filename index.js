@@ -6,12 +6,16 @@ let peerConnection;
 
 let signalingChannel;
 
+let videoElement;
+
 window.onload = async function () {
   const startBtn = document.getElementById("start_btn");
   startBtn.addEventListener("click", start);
 
   const stopBtn = document.getElementById("stop_btn");
   stopBtn.addEventListener("click", stop);
+
+  videoElement = document.getElementById("video");
 };
 
 function stop() {
@@ -27,8 +31,11 @@ async function start() {
     createDataChannel(peerConnection);
 
     peerConnection.onicecandidate = handleIceCandidateEvent;
+    peerConnection.ontrack = handleTrackEvent;
 
-    const offer = await peerConnection.createOffer();
+    const offer = await peerConnection.createOffer({
+      offerToReceiveVideo: true,
+    });
     console.log("Setting local description...");
     await peerConnection.setLocalDescription(offer);
 
@@ -62,6 +69,13 @@ async function start() {
   });
 }
 
+const handleTrackEvent = (event) => {
+  console.log(event);
+  if (event.track.kind === "video") {
+    videoElement.srcObject = event.streams[0];
+  }
+};
+
 const handleIceCandidateEvent = (event) => {
   if (event.candidate) {
     console.log("Sending ice candidate to server...");
@@ -85,7 +99,6 @@ function createDataChannel(peerConnection) {
   dataChannel.onerror = (error) => {
     console.log("Error On Data channel:", error);
   };
-
 
   dataChannel.onclose = () => {
     console.log("Data channel is closed");

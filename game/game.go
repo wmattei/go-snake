@@ -42,7 +42,7 @@ func StartGameLoop(frameChannel chan []byte, commandChannel chan string, closeSi
 
 func handleFrameUpdate(gameState *GameState, frameChannel chan []byte) {
 	if constants.SHOULD_RENDER_FRAME {
-		frame := RenderFrame(*gameState)
+		frame := RenderFrame(gameState)
 		frameChannel <- frame
 	}
 }

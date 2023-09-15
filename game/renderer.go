@@ -15,7 +15,7 @@ func drawRectangle(img *image.RGBA, min, max image.Point, col color.RGBA) {
 	}
 }
 
-func RenderFrame(gameState GameState) []byte {
+func RenderFrame(gameState *GameState) []byte {
 
 	// fmt.Println("Rendering frame. Game over: ", gameOver)
 	img := image.NewRGBA(image.Rect(0, 0, constants.FRAME_WIDTH, constants.FRAME_HEIGHT))
