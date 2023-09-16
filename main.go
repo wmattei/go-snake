@@ -7,66 +7,86 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v3"
-
 	"github.com/wmattei/go-snake/encoder"
 	"github.com/wmattei/go-snake/game"
 	"github.com/wmattei/go-snake/renderer"
+	"github.com/wmattei/go-snake/snake_errors"
 	"github.com/wmattei/go-snake/snake_webrtc"
 	"github.com/wmattei/go-snake/stream"
 )
 
+const (
+	port = 4000
+)
+
 func main() {
+	http.HandleFunc("/ws", handleWebsocketConnection)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	snake_errors.HandleError(err)
+}
 
-	snake_webrtc.HandleWebRtcSignaling(func(pc *webrtc.PeerConnection, track *webrtc.TrackLocalStaticSample) {
-		fmt.Println("Peer connection established")
+func handleWebsocketConnection(w http.ResponseWriter, r *http.Request) {
+	peerConnection, err := snake_webrtc.CreateAndNegotiatePeerConnection(w, r)
+	snake_errors.HandleError(err)
 
-		pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-			fmt.Println("Data channel established")
-			closeSignal := make(chan bool)
+	track := peerConnection.GetSenders()[0].Track().(*webrtc.TrackLocalStaticSample)
+	fmt.Println("Peer connection established")
 
-			commandChannel := make(chan string)
-			gameStateCh := make(chan *game.GameState)
-			pixelCh := make(chan []byte)
-			encodedFrameCh := make(chan []byte)
+	handleDataChannel(peerConnection, track)
+}
 
-			// Is this the best approach for multi-tasking? COULD BE LOL
-			go game.StartGameLoop(commandChannel, gameStateCh, closeSignal)
-			go renderer.StartFrameRenderer(gameStateCh, pixelCh)
-			go encoder.StartEncoder(pixelCh, encodedFrameCh)
-			go stream.StartStreaming(encodedFrameCh, track)
+func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.TrackLocalStaticSample) {
+	peerConnection.OnDataChannel(func(dataChannel *webrtc.DataChannel) {
+		fmt.Println("Data channel established")
+		closeSignal := make(chan bool)
 
-			go func() {
-				<-closeSignal
-				fmt.Println("Closing peer connection")
-				dc.Close()
-				pc.Close()
+		commandChannel := make(chan string)
+		gameStateCh := make(chan *game.GameState, 1)
+		pixelCh := make(chan []byte)
+		encodedFrameCh := make(chan []byte)
 
-				close(gameStateCh)
-				close(commandChannel)
-				close(pixelCh)
+		gameLoop := game.NewGameLoop(&game.GameLoopInit{CommandChannel: commandChannel, GameStateChannel: gameStateCh, CloseSignal: closeSignal})
+		go gameLoop.Start()
 
-				time.Sleep(1 * time.Second)
-				close(encodedFrameCh)
-			}()
+		go renderer.StartFrameRenderer(gameStateCh, pixelCh)
+		go encoder.StartEncoder(pixelCh, encodedFrameCh)
+		go stream.StartStreaming(encodedFrameCh, track)
 
-			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				var message snake_webrtc.Message
-				err := json.Unmarshal(msg.Data, &message)
-				if err != nil {
-					fmt.Println("Error unmarshalling message:", err)
-					return
-				}
-				if message.Type != "command" {
-					fmt.Println("Channel used for wrong message type:", message.Type)
-					return
-				}
+		go handleChannelClose(dataChannel, peerConnection, gameStateCh, commandChannel, pixelCh, encodedFrameCh, closeSignal)
 
-				fmt.Println("Received command:", message.Data.(string))
-				commandChannel <- message.Data.(string)
-
-			})
+		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
+			handleDataChannelMessage(msg, commandChannel)
 		})
-
 	})
-	http.ListenAndServe(":4000", nil)
+}
+
+func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection, gameStateCh chan *game.GameState, commandChannel chan string, pixelCh chan []byte, encodedFrameCh chan []byte, closeSignal chan bool) {
+	<-closeSignal
+	fmt.Println("Closing peer connection")
+	dataChannel.Close()
+	peerConnection.Close()
+
+	close(gameStateCh)
+	close(commandChannel)
+
+	// Wait for a second for remaining encoded frames to be sent
+	time.Sleep(1 * time.Second)
+	close(pixelCh)
+	close(encodedFrameCh)
+}
+
+func handleDataChannelMessage(msg webrtc.DataChannelMessage, commandChannel chan string) {
+	var message snake_webrtc.Message
+	err := json.Unmarshal(msg.Data, &message)
+	if err != nil {
+		fmt.Println("Error unmarshalling message:", err)
+		return
+	}
+	if message.Type != "command" {
+		fmt.Println("Channel used for wrong message type:", message.Type)
+		return
+	}
+
+	fmt.Println("Received command:", message.Data.(string))
+	commandChannel <- message.Data.(string)
 }

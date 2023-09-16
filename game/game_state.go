@@ -30,16 +30,45 @@ type GameState struct {
 	foodPosition   Position
 }
 
+func NewGameState(rows, cols int) *GameState {
+	matrix := make([][]int, rows)
+	for i := range matrix {
+		matrix[i] = make([]int, cols)
+	}
+	headPos := Position{X: cols / 2, Y: rows / 2}
+	snake := []Position{headPos}
+
+	state := &GameState{
+		snakeDirection: RIGHT,
+		snakeSize:      3,
+		matrix:         matrix,
+		rows:           rows,
+		cols:           cols,
+	}
+
+	state.generateFood()
+
+	for i := 1; i < state.snakeSize; i++ {
+		bodyPos := Position{Y: headPos.Y, X: headPos.X - i}
+		snake = append(snake, bodyPos)
+		state.setAt(bodyPos, 2)
+	}
+	state.snake = snake
+	state.setAt(headPos, 1)
+
+	return state
+}
+
 func (g *GameState) GetMatrix() [][]int {
 	return g.matrix
 }
 
-func (g *GameState) At(pos Position) int {
-	return g.matrix[pos.Y][pos.X]
+func (g *GameState) setAt(pos Position, value int) {
+	g.matrix[pos.Y][pos.X] = value
 }
 
-func (g *GameState) SetAt(pos Position, value int) {
-	g.matrix[pos.Y][pos.X] = value
+func (g *GameState) at(pos Position) int {
+	return g.matrix[pos.Y][pos.X]
 }
 
 func (g *GameState) LastSnakePart() Position {
@@ -62,22 +91,47 @@ func (g *GameState) IsHeadingRight() bool {
 	return g.snakeDirection == RIGHT
 }
 
-func (g *GameState) GenerateFood() {
+func (g *GameState) generateFood() {
 	randomX := rand.Intn(g.cols)
 	randomY := rand.Intn(g.rows)
 	position := Position{X: randomX, Y: randomY}
-	if g.At(position) != 0 {
-		g.GenerateFood()
+	if g.at(position) != 0 {
+		g.generateFood()
 		return
 	}
 
 	g.foodPosition = Position{X: randomX, Y: randomY}
-	g.SetAt(g.foodPosition, 3)
+	g.setAt(g.foodPosition, 3)
 }
 
-func (g *GameState) Move() bool {
+func (g *GameState) validateNewDirection(newDirection Direction) bool {
+	if g.IsHeadingUp() && newDirection == DOWN {
+		return false
+	}
+	if g.IsHeadingDown() && newDirection == UP {
+		return false
+	}
+	if g.IsHeadingLeft() && newDirection == RIGHT {
+		return false
+	}
+	if g.IsHeadingRight() && newDirection == LEFT {
+		return false
+	}
+	return true
+}
+
+func (g *GameState) updateGameState(command *string) bool {
+	if command != nil && g.validateNewDirection(Direction(*command)) {
+		g.snakeDirection = Direction(*command)
+	}
+
+	collided := g.move()
+	return !collided
+}
+
+func (g *GameState) move() bool {
 	headPos := g.snake[0]
-	g.SetAt(headPos, 2)
+	g.setAt(headPos, 2)
 	switch g.snakeDirection {
 	case UP:
 		headPos.Y = (headPos.Y - 1 + g.rows) % g.rows
@@ -91,73 +145,22 @@ func (g *GameState) Move() bool {
 		return true
 	}
 
-	if g.At(headPos) == 2 {
+	if g.at(headPos) == 2 {
 		return true
 	}
 
 	if headPos.Equal(g.foodPosition) {
 		g.snakeSize++
-		g.GenerateFood()
+		g.generateFood()
 	}
 
-	g.SetAt(headPos, 1)
-	g.SetAt(g.LastSnakePart(), 0)
+	g.setAt(headPos, 1)
+	g.setAt(g.LastSnakePart(), 0)
 	g.snake = append([]Position{headPos}, g.snake[:g.snakeSize-1]...)
 
 	return false
 }
 
-func validateNewDirection(state *GameState, newDirection Direction) bool {
-	if state.IsHeadingUp() && newDirection == DOWN {
-		return false
-	}
-	if state.IsHeadingDown() && newDirection == UP {
-		return false
-	}
-	if state.IsHeadingLeft() && newDirection == RIGHT {
-		return false
-	}
-	if state.IsHeadingRight() && newDirection == LEFT {
-		return false
-	}
-	return true
-}
-
-func updateGameState(state *GameState, command *string) bool {
-	if command != nil && validateNewDirection(state, Direction(*command)) {
-		state.snakeDirection = Direction(*command)
-	}
-
-	collided := state.Move()
-
-	return !collided
-}
-
-func NewGameState(rows, cols int) *GameState {
-	matrix := make([][]int, rows)
-	for i := range matrix {
-		matrix[i] = make([]int, cols)
-	}
-	headPos := Position{X: cols / 2, Y: rows / 2}
-	snake := []Position{headPos}
-
-	state := &GameState{
-		snakeDirection: RIGHT,
-		snakeSize:      3,
-		matrix:         matrix,
-		rows:           rows,
-		cols:           cols,
-	}
-
-	state.GenerateFood()
-
-	for i := 1; i < state.snakeSize; i++ {
-		bodyPos := Position{Y: headPos.Y, X: headPos.X - i}
-		snake = append(snake, bodyPos)
-		state.SetAt(bodyPos, 2)
-	}
-	state.snake = snake
-	state.SetAt(headPos, 1)
-
-	return state
+func (g *GameState) handleCommand(command *string) bool {
+	return g.updateGameState(command)
 }
