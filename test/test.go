@@ -8,7 +8,7 @@ import (
 
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
 	"github.com/wmattei/go-snake/constants"
-	"github.com/wmattei/go-snake/snake_errors"
+	"github.com/wmattei/go-snake/shared/errutil"
 )
 
 func generateFrame() []byte {
@@ -36,21 +36,21 @@ func main() {
 	cmd.Stderr = os.Stderr
 
 	inPipe, err := cmd.StdinPipe()
-	snake_errors.HandleError(err)
+	errutil.HandleError(err)
 
 	outPipe, err := cmd.StdoutPipe()
-	snake_errors.HandleError(err)
+	errutil.HandleError(err)
 
 	err = cmd.Start()
-	snake_errors.HandleError(err)
+	errutil.HandleError(err)
 
 	_, err = inPipe.Write(frame)
-	snake_errors.HandleError(err)
+	errutil.HandleError(err)
 
 	inPipe.Close()
 
 	h264, err := h264reader.NewReader(outPipe)
-	snake_errors.HandleError(err)
+	errutil.HandleError(err)
 
 	spsAndPpsCache := []byte{}
 	for {

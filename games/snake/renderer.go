@@ -1,11 +1,10 @@
-package renderer
+package snake
 
 import (
 	"image"
 	"image/color"
 
 	"github.com/wmattei/go-snake/constants"
-	"github.com/wmattei/go-snake/game"
 )
 
 var (
@@ -42,7 +41,7 @@ func convertRGBAtoRGB(img *image.RGBA) []byte {
 	return rawRGBData
 }
 
-func StartFrameRenderer(gameStateCh chan *game.GameState, pixelCh chan []byte) {
+func startFrameRenderer(gameStateCh chan *GameState, pixelCh chan []byte) {
 	for {
 		gameState := <-gameStateCh
 		if gameState == nil {

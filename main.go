@@ -7,12 +7,10 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v3"
-	"github.com/wmattei/go-snake/encoder"
-	"github.com/wmattei/go-snake/game"
-	"github.com/wmattei/go-snake/renderer"
-	"github.com/wmattei/go-snake/snake_errors"
-	"github.com/wmattei/go-snake/snake_webrtc"
-	"github.com/wmattei/go-snake/stream"
+	"github.com/wmattei/go-snake/games/snake"
+	"github.com/wmattei/go-snake/shared/encodingutil"
+	"github.com/wmattei/go-snake/shared/errutil"
+	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
 
 const (
@@ -22,12 +20,12 @@ const (
 func main() {
 	http.HandleFunc("/ws", handleWebsocketConnection)
 	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
-	snake_errors.HandleError(err)
+	errutil.HandleError(err)
 }
 
 func handleWebsocketConnection(w http.ResponseWriter, r *http.Request) {
-	peerConnection, err := snake_webrtc.CreateAndNegotiatePeerConnection(w, r)
-	snake_errors.HandleError(err)
+	peerConnection, err := webrtcutil.CreateAndNegotiatePeerConnection(w, r)
+	errutil.HandleError(err)
 
 	track := peerConnection.GetSenders()[0].Track().(*webrtc.TrackLocalStaticSample)
 	fmt.Println("Peer connection established")
@@ -41,18 +39,15 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 		closeSignal := make(chan bool)
 
 		commandChannel := make(chan string)
-		gameStateCh := make(chan *game.GameState, 1)
-		pixelCh := make(chan []byte)
+		frameChannel := make(chan []byte)
 		encodedFrameCh := make(chan []byte)
 
-		gameLoop := game.NewGameLoop(&game.GameLoopInit{CommandChannel: commandChannel, GameStateChannel: gameStateCh, CloseSignal: closeSignal})
-		go gameLoop.Start()
+		go snake.StartSnakeGame(commandChannel, frameChannel, closeSignal)
 
-		go renderer.StartFrameRenderer(gameStateCh, pixelCh)
-		go encoder.StartEncoder(pixelCh, encodedFrameCh)
-		go stream.StartStreaming(encodedFrameCh, track)
+		go encodingutil.StartEncoder(frameChannel, encodedFrameCh)
+		go webrtcutil.StartStreaming(encodedFrameCh, track)
 
-		go handleChannelClose(dataChannel, peerConnection, gameStateCh, commandChannel, pixelCh, encodedFrameCh, closeSignal)
+		go handleChannelClose(dataChannel, peerConnection, commandChannel, frameChannel, encodedFrameCh, closeSignal)
 
 		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
 			handleDataChannelMessage(msg, commandChannel)
@@ -60,13 +55,12 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 	})
 }
 
-func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection, gameStateCh chan *game.GameState, commandChannel chan string, pixelCh chan []byte, encodedFrameCh chan []byte, closeSignal chan bool) {
+func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection, commandChannel chan string, pixelCh chan []byte, encodedFrameCh chan []byte, closeSignal chan bool) {
 	<-closeSignal
 	fmt.Println("Closing peer connection")
 	dataChannel.Close()
 	peerConnection.Close()
 
-	close(gameStateCh)
 	close(commandChannel)
 
 	// Wait for a second for remaining encoded frames to be sent
@@ -76,7 +70,7 @@ func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.
 }
 
 func handleDataChannelMessage(msg webrtc.DataChannelMessage, commandChannel chan string) {
-	var message snake_webrtc.Message
+	var message webrtcutil.Message
 	err := json.Unmarshal(msg.Data, &message)
 	if err != nil {
 		fmt.Println("Error unmarshalling message:", err)

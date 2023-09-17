@@ -1,4 +1,4 @@
-package snake_errors
+package errutil
 
 import "log"
 

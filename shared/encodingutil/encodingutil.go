@@ -1,4 +1,4 @@
-package encoder
+package encodingutil
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
 	"github.com/wmattei/go-snake/constants"
-	"github.com/wmattei/go-snake/snake_errors"
+	"github.com/wmattei/go-snake/shared/errutil"
 )
 
 const ffmpegCommand = "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %d -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
@@ -26,30 +26,30 @@ func StartEncoder(pixelCh chan []byte, encodedFrameCh chan []byte) {
 
 		// Create a pipe for input and output
 		inPipe, err := cmd.StdinPipe()
-		snake_errors.HandleError(err)
+		errutil.HandleError(err)
 		outPipe, err := cmd.StdoutPipe()
-		snake_errors.HandleError(err)
+		errutil.HandleError(err)
 
 		// Start the command
 		if err := cmd.Start(); err != nil {
-			snake_errors.HandleError(err)
+			errutil.HandleError(err)
 			continue
 		}
 
 		// Write raw RGB data to the input pipe
 		_, err = inPipe.Write(rawRGBDataFrame)
-		snake_errors.HandleError(err)
+		errutil.HandleError(err)
 
 		// Close the input pipe to indicate no more input
 		inPipe.Close()
 
 		// Read H.264 NAL units from the output pipe and send to the channel
 		encodedData, err := readH264NALUnits(outPipe)
-		snake_errors.HandleError(err)
+		errutil.HandleError(err)
 
 		// Wait for the command to finish
 		err = cmd.Wait()
-		snake_errors.HandleError(err)
+		errutil.HandleError(err)
 
 		// Send the encoded data to the channel
 		encodedFrameCh <- encodedData
