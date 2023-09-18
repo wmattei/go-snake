@@ -6,7 +6,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
-	"github.com/wmattei/go-snake/shared/errutil"
+	"github.com/wmattei/go-snake/shared/logutil"
 )
 
 type Message struct {
@@ -68,13 +68,13 @@ func CreateAndNegotiatePeerConnection(w http.ResponseWriter, r *http.Request) (*
 
 				videoTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, "video", "game")
 				if err != nil {
-					errutil.HandleError(err)
+					logutil.LogFatal(err)
 					return
 				}
 
 				_, err = pc.AddTrack(videoTrack)
 				if err != nil {
-					errutil.HandleError(err)
+					logutil.LogFatal(err)
 					return
 				}
 
@@ -90,13 +90,13 @@ func CreateAndNegotiatePeerConnection(w http.ResponseWriter, r *http.Request) (*
 
 				answer, err := pc.CreateAnswer(nil)
 				if err != nil {
-					errutil.HandleError(err)
+					logutil.LogFatal(err)
 					return
 				}
 
 				err = pc.SetLocalDescription(answer)
 				if err != nil {
-					errutil.HandleError(err)
+					logutil.LogFatal(err)
 					return
 				}
 

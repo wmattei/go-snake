@@ -5,8 +5,13 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
-	"github.com/wmattei/go-snake/constants"
 )
+
+func streamFrame(encodedFrame []byte, videoTrack *webrtc.TrackLocalStaticSample) {
+	// started := time.Now()
+	// defer logutil.LogTimeElapsed(started, "Frame streaming took: ")
+	videoTrack.WriteSample(media.Sample{Data: encodedFrame, Duration: time.Millisecond, Timestamp: time.Now()})
+}
 
 func StartStreaming(encodedFrameCh chan []byte, videoTrack *webrtc.TrackLocalStaticSample) {
 	for {
@@ -14,6 +19,6 @@ func StartStreaming(encodedFrameCh chan []byte, videoTrack *webrtc.TrackLocalSta
 		if encodedFrame == nil {
 			break
 		}
-		videoTrack.WriteSample(media.Sample{Data: encodedFrame, Duration: time.Second / constants.FPS, Timestamp: time.Now()})
+		streamFrame(encodedFrame, videoTrack)
 	}
 }
