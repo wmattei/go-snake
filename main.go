@@ -40,10 +40,10 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 		closeSignal := make(chan bool)
 
 		commandChannel := make(chan interface{})
-		frameChannel := make(chan []byte)
-		encodedFrameCh := make(chan []byte)
+		canvasCh := make(chan *encodingutil.Canvas)
+		encodedFrameCh := make(chan *webrtcutil.Streamable)
 
-		go handleChannelClose(dataChannel, peerConnection, commandChannel, frameChannel, encodedFrameCh, closeSignal)
+		go handleChannelClose(dataChannel, peerConnection, commandChannel, canvasCh, encodedFrameCh, closeSignal)
 		debugger := debugutil.NewDebugger(500)
 		go debugger.StartDebugger()
 
@@ -62,10 +62,10 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 					WindowWidth:    windowWidth,
 					WindowHeight:   windowHeight,
 					CommandChannel: commandChannel,
-					FrameChannel:   frameChannel,
+					CanvasChannel:  canvasCh,
 					CloseSignal:    closeSignal,
 				})
-				go encodingutil.StartEncoder(frameChannel, encodedFrameCh, windowWidth, windowHeight)
+				go encodingutil.StartEncoder(canvasCh, encodedFrameCh, windowWidth, windowHeight)
 				go webrtcutil.StartStreaming(encodedFrameCh, track, debugger)
 			} else {
 				// fmt.Println(message.Data.(map[string]interface{})["position"])
@@ -75,7 +75,7 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 	})
 }
 
-func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection, commandChannel chan interface{}, pixelCh chan []byte, encodedFrameCh chan []byte, closeSignal chan bool) {
+func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection, commandChannel chan interface{}, canvasCh chan *encodingutil.Canvas, encodedFrameCh chan *webrtcutil.Streamable, closeSignal chan bool) {
 	<-closeSignal
 	fmt.Println("Closing peer connection")
 	dataChannel.Close()
@@ -85,6 +85,6 @@ func handleChannelClose(dataChannel *webrtc.DataChannel, peerConnection *webrtc.
 
 	// Wait for a second for remaining encoded frames to be sent
 	time.Sleep(1 * time.Second)
-	close(pixelCh)
+	close(canvasCh)
 	close(encodedFrameCh)
 }

@@ -2,6 +2,7 @@ package debugutil
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/wmattei/go-snake/constants"
@@ -29,11 +30,28 @@ func (d *Debugger) StartDebugger() {
 
 	for {
 		<-ticker.C
-		d.printFps()
+		fps := d.getFpsStat()
+		mem := d.getMemoryStats()
+		cpu := d.getCPUStats()
+
+		logStat(fmt.Sprintf("%s | %s | %s", fps, mem, cpu))
 	}
 }
 
-func (d *Debugger) printFps() {
+func (d *Debugger) getMemoryStats() string {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	return fmt.Sprintf("Allocated memory: %v MB", m.Alloc/1024/1024)
+}
+
+func (d *Debugger) getCPUStats() string {
+	var s runtime.MemStats
+	runtime.ReadMemStats(&s)
+	return fmt.Sprintf("Goroutines: %v ", runtime.NumGoroutine())
+
+}
+
+func (d *Debugger) getFpsStat() string {
 	frameRate := float64(d.frameCounter) * (1000 / float64(d.debugInterval))
 	var colorCode string
 	if frameRate < constants.FPS*0.90 {
@@ -44,6 +62,10 @@ func (d *Debugger) printFps() {
 
 	resetColor := "\x1b[0m"
 
-	fmt.Printf("\r%sFrame rate: %v / %v FPS%s ", colorCode, frameRate, constants.FPS, resetColor)
 	d.frameCounter = 0
+	return fmt.Sprintf("%sFrame rate: %v / %v FPS%s ", colorCode, frameRate, constants.FPS, resetColor)
+}
+
+func logStat(stat string) {
+	fmt.Printf("\r%v", stat)
 }

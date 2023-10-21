@@ -7,10 +7,17 @@ import (
 	"os/exec"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
 	"github.com/wmattei/go-snake/shared/logutil"
+	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
+
+type Canvas struct {
+	Data      []byte
+	Timestamp time.Time
+}
 
 const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate 1 -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
 
@@ -51,12 +58,14 @@ func encodeFrame(rawFrame []byte, windowWidth, windowHeight int) ([]byte, error)
 	return encodedData, nil
 }
 
-func StartEncoder(pixelCh chan []byte, encodedFrameCh chan []byte, windowWidth, windowHeight int) {
+func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streamable, windowWidth, windowHeight int) {
 	ffmpegCommand = fmt.Sprintf(ffmpegBaseCommand, windowWidth, windowHeight)
 
-	numWorkers := runtime.NumCPU()
+	numWorkers := runtime.NumCPU() / 2
 
 	var wg sync.WaitGroup
+
+	var lastTimestamp time.Time
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -64,15 +73,19 @@ func StartEncoder(pixelCh chan []byte, encodedFrameCh chan []byte, windowWidth, 
 		go func() {
 			defer wg.Done()
 			for {
-				rawRGBDataFrame, more := <-pixelCh
+				canvas, more := <-canvasCh
 				if !more {
 					// Channel closed, exit the loop
 					break
 				}
 
-				encodedData, err := encodeFrame(rawRGBDataFrame, windowWidth, windowHeight)
+				if canvas.Timestamp.Before(lastTimestamp) {
+					continue
+				}
+				encodedData, err := encodeFrame(canvas.Data, windowWidth, windowHeight)
 				logutil.LogFatal(err)
-				encodedFrameCh <- encodedData
+				encodedFrameCh <- &webrtcutil.Streamable{Data: encodedData, Timestamp: canvas.Timestamp}
+				lastTimestamp = canvas.Timestamp
 			}
 		}()
 	}

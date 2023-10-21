@@ -4,7 +4,7 @@ import (
 	"image/color"
 	"time"
 
-	"github.com/wmattei/go-snake/shared/logutil"
+	"github.com/wmattei/go-snake/shared/encodingutil"
 )
 
 var (
@@ -17,8 +17,8 @@ const (
 )
 
 func drawRectangle(rawRGBData []byte, col color.RGBA, idx, width int) {
-	for i := 0; i < 40; i++ {
-		for j := 0; j < 40; j++ {
+	for i := 0; i < boxSize; i++ {
+		for j := 0; j < boxSize; j++ {
 			index := idx + (i*width+j)*bytesPerPixel
 			if index >= len(rawRGBData) {
 				continue
@@ -38,8 +38,8 @@ func hasStateChanged(prev, curr *gameState) bool {
 }
 
 func renderFrame(gs *gameState, width, height int) []byte {
-	startedAt := time.Now()
-	defer logutil.LogTimeElapsed(startedAt, "Frame rendering")
+	// startedAt := time.Now()
+	// defer logutil.LogTimeElapsed(startedAt, "Frame rendering")
 	matrix := gs.GetMatrix()
 
 	rawRGBData := make([]byte, bytesPerPixel*width*height)
@@ -57,7 +57,7 @@ func renderFrame(gs *gameState, width, height int) []byte {
 	return rawRGBData
 }
 
-func startFrameRenderer(gameStateCh chan gameState, pixelCh chan<- []byte, width, height int) {
+func startFrameRenderer(gameStateCh chan gameState, canvasCh chan<- *encodingutil.Canvas, width, height int) {
 	var lastRenderedState *gameState
 	for {
 		gameState := <-gameStateCh
@@ -66,6 +66,6 @@ func startFrameRenderer(gameStateCh chan gameState, pixelCh chan<- []byte, width
 		}
 		lastRenderedState = &gameState
 		rawRGBData := renderFrame(&gameState, width, height)
-		pixelCh <- rawRGBData
+		canvasCh <- &encodingutil.Canvas{Data: rawRGBData, Timestamp: time.Now()}
 	}
 }
