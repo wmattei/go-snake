@@ -5,19 +5,18 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"time"
+	"runtime"
+	"sync"
 
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
-	"github.com/wmattei/go-snake/constants"
 	"github.com/wmattei/go-snake/shared/logutil"
 )
 
-const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %d -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
+const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate 1 -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
 
 var ffmpegCommand string
 
 func encodeFrame(rawFrame []byte, windowWidth, windowHeight int) ([]byte, error) {
-	started := time.Now()
 
 	cmd := exec.Command("bash", "-c", ffmpegCommand)
 	cmd.Stderr = os.Stderr
@@ -38,7 +37,6 @@ func encodeFrame(rawFrame []byte, windowWidth, windowHeight int) ([]byte, error)
 	}
 
 	inPipe.Close()
-	logutil.LogTimeElapsed(started, "Writing and closing: ")
 
 	encodedData, err := readH264NALUnits(outPipe)
 	if err != nil {
@@ -54,24 +52,29 @@ func encodeFrame(rawFrame []byte, windowWidth, windowHeight int) ([]byte, error)
 }
 
 func StartEncoder(pixelCh chan []byte, encodedFrameCh chan []byte, windowWidth, windowHeight int) {
-	ffmpegCommand = fmt.Sprintf(ffmpegBaseCommand, windowWidth, windowHeight, constants.FPS)
-	for {
-		rawRGBDataFrame, ok := <-pixelCh
-		if !ok {
-			// Channel closed, exit the loop
-			break
-		}
+	ffmpegCommand = fmt.Sprintf(ffmpegBaseCommand, windowWidth, windowHeight)
 
-		// go func() {
-		// 	encodedData, err := encodeFrame(rawRGBDataFrame, windowWidth, windowHeight)
-		// 	logutil.LogFatal(err)
-		// 	encodedFrameCh <- encodedData
-		// }()
+	numWorkers := runtime.NumCPU()
 
-		encodedData, err := encodeFrame(rawRGBDataFrame, windowWidth, windowHeight)
-		logutil.LogFatal(err)
+	var wg sync.WaitGroup
 
-		encodedFrameCh <- encodedData
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			for {
+				rawRGBDataFrame, more := <-pixelCh
+				if !more {
+					// Channel closed, exit the loop
+					break
+				}
+
+				encodedData, err := encodeFrame(rawRGBDataFrame, windowWidth, windowHeight)
+				logutil.LogFatal(err)
+				encodedFrameCh <- encodedData
+			}
+		}()
 	}
 }
 

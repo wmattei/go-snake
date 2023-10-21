@@ -1,40 +1,33 @@
 package latencycheck
 
 import (
-	"image"
 	"image/color"
+	"time"
+
+	"github.com/wmattei/go-snake/shared/logutil"
 )
 
 var (
 	RED = color.RGBA{R: 255, G: 0, B: 0, A: 255}
 )
 
-const bytesPerPixel = 3 // RGB: 3 bytes per pixel
+const (
+	bytesPerPixel = 3 // RGB: 3 bytes per pixel
+	boxSize       = 40
+)
 
-func drawRectangle(img *image.RGBA, min, max image.Point, col color.RGBA) {
-	for x := min.X; x < max.X; x++ {
-		for y := min.Y; y < max.Y; y++ {
-			img.Set(x, y, col)
+func drawRectangle(rawRGBData []byte, col color.RGBA, idx, width int) {
+	for i := 0; i < 40; i++ {
+		for j := 0; j < 40; j++ {
+			index := idx + (i*width+j)*bytesPerPixel
+			if index >= len(rawRGBData) {
+				continue
+			}
+			rawRGBData[index] = RED.R
+			rawRGBData[index+1] = RED.G
+			rawRGBData[index+2] = RED.B
 		}
 	}
-}
-
-func convertRGBAtoRGB(img *image.RGBA) []byte {
-	width, height := img.Rect.Dx(), img.Rect.Dy()
-	rawRGBData := make([]byte, bytesPerPixel*width*height)
-
-	idx := 0
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			pixel := img.RGBAAt(x, y)
-			rawRGBData[idx] = pixel.R
-			rawRGBData[idx+1] = pixel.G
-			rawRGBData[idx+2] = pixel.B
-			idx += bytesPerPixel
-		}
-	}
-
-	return rawRGBData
 }
 
 func hasStateChanged(prev, curr *gameState) bool {
@@ -42,6 +35,26 @@ func hasStateChanged(prev, curr *gameState) bool {
 		return false
 	}
 	return true
+}
+
+func renderFrame(gs *gameState, width, height int) []byte {
+	startedAt := time.Now()
+	defer logutil.LogTimeElapsed(startedAt, "Frame rendering")
+	matrix := gs.GetMatrix()
+
+	rawRGBData := make([]byte, bytesPerPixel*width*height)
+	idx := 0
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if matrix[y][x] == 1 {
+				drawRectangle(rawRGBData, RED, idx, width)
+			}
+			idx += bytesPerPixel
+		}
+	}
+
+	return rawRGBData
 }
 
 func startFrameRenderer(gameStateCh chan gameState, pixelCh chan<- []byte, width, height int) {
@@ -52,21 +65,7 @@ func startFrameRenderer(gameStateCh chan gameState, pixelCh chan<- []byte, width
 			continue
 		}
 		lastRenderedState = &gameState
-
-		img := image.NewRGBA(image.Rect(0, 0, width, height))
-		matrix := gameState.GetMatrix()
-
-		for y := 0; y < len(matrix); y++ {
-			for x := 0; x < len(matrix[0]); x++ {
-				rectMin := image.Point{X: x, Y: y}
-				rectMax := image.Point{X: rectMin.X + 10, Y: rectMin.Y + 10}
-				if matrix[y][x] == 1 {
-					drawRectangle(img, rectMin, rectMax, RED)
-				}
-			}
-		}
-
-		rawRGBData := convertRGBAtoRGB(img)
+		rawRGBData := renderFrame(&gameState, width, height)
 		pixelCh <- rawRGBData
 	}
 }

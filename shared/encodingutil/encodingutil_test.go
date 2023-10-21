@@ -30,37 +30,40 @@ func generateFrame() []byte {
 func BenchmarkEncoding(b *testing.B) {
 	rawFrame := generateFrame()
 
-	ffmpegCommand := "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size 1024x768 -framerate 30 -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
+	for i := 0; i < b.N; i++ {
 
-	cmd := exec.Command("bash", "-c", ffmpegCommand)
-	cmd.Stderr = os.Stderr
+		ffmpegCommand := "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size 1024x768 -framerate 1 -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
 
-	inPipe, err := cmd.StdinPipe()
-	logutil.LogFatal(err)
-	outPipe, err := cmd.StdoutPipe()
-	logutil.LogFatal(err)
+		cmd := exec.Command("bash", "-c", ffmpegCommand)
+		cmd.Stderr = os.Stderr
 
-	if err := cmd.Start(); err != nil {
-		b.Fail()
-	}
+		inPipe, err := cmd.StdinPipe()
+		logutil.LogFatal(err)
+		outPipe, err := cmd.StdoutPipe()
+		logutil.LogFatal(err)
 
-	_, err = inPipe.Write(rawFrame)
-	if err != nil {
-		b.Fail()
-	}
+		if err := cmd.Start(); err != nil {
+			b.Fail()
+		}
 
-	inPipe.Close()
-	encodedData, err := readH264NALUnits(outPipe)
-	if err != nil {
-		b.Fail()
-	}
+		_, err = inPipe.Write(rawFrame)
+		if err != nil {
+			b.Fail()
+		}
 
-	err = cmd.Wait()
-	if err != nil {
-		b.Fail()
-	}
-	if len(encodedData) == 0 {
-		b.Fail()
+		inPipe.Close()
+		encodedData, err := readH264NALUnits(outPipe)
+		if err != nil {
+			b.Fail()
+		}
+
+		err = cmd.Wait()
+		if err != nil {
+			b.Fail()
+		}
+		if len(encodedData) == 0 {
+			b.Fail()
+		}
 	}
 }
 

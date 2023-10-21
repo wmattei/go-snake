@@ -29,6 +29,7 @@ func newGameState(rows, cols int) *gameState {
 }
 
 func (gs *gameState) handleCommand(command position) bool {
+	gs.setAt(gs.mousePosition, 0)
 	gs.setAt(command, 1)
 	gs.mousePosition = command
 	return true

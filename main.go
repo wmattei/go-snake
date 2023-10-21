@@ -8,6 +8,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	latencycheck "github.com/wmattei/go-snake/games/latency_check"
+	"github.com/wmattei/go-snake/shared/debugutil"
 	"github.com/wmattei/go-snake/shared/encodingutil"
 	"github.com/wmattei/go-snake/shared/logutil"
 	"github.com/wmattei/go-snake/shared/webrtcutil"
@@ -43,6 +44,8 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 		encodedFrameCh := make(chan []byte)
 
 		go handleChannelClose(dataChannel, peerConnection, commandChannel, frameChannel, encodedFrameCh, closeSignal)
+		debugger := debugutil.NewDebugger(500)
+		go debugger.StartDebugger()
 
 		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var message webrtcutil.Message
@@ -63,7 +66,7 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 					CloseSignal:    closeSignal,
 				})
 				go encodingutil.StartEncoder(frameChannel, encodedFrameCh, windowWidth, windowHeight)
-				go webrtcutil.StartStreaming(encodedFrameCh, track)
+				go webrtcutil.StartStreaming(encodedFrameCh, track, debugger)
 			} else {
 				// fmt.Println(message.Data.(map[string]interface{})["position"])
 				commandChannel <- message.Data
