@@ -4,6 +4,8 @@ import (
 	"image/color"
 	"time"
 
+	"github.com/wmattei/go-snake/constants"
+	"github.com/wmattei/go-snake/shared/debugutil"
 	"github.com/wmattei/go-snake/shared/encodingutil"
 )
 
@@ -57,15 +59,35 @@ func renderFrame(gs *gameState, width, height int) []byte {
 	return rawRGBData
 }
 
-func startFrameRenderer(gameStateCh chan gameState, canvasCh chan<- *encodingutil.Canvas, width, height int) {
+func startFrameRenderer(gameStateCh chan gameState, canvasCh chan<- *encodingutil.Canvas, width, height int, debugger *debugutil.Debugger) {
 	var lastRenderedState *gameState
+	statePerSecond := 0
+
 	for {
 		gameState := <-gameStateCh
+		// fmt.Println(gameState.timeStamp)
+		if lastRenderedState != nil && lastRenderedState.timeStamp.Second() == gameState.timeStamp.Second() {
+			statePerSecond++
+		} else {
+			// fmt.Println("State per second:", statePerSecond)
+			statePerSecond = 0
+		}
+
 		if lastRenderedState != nil && !hasStateChanged(lastRenderedState, &gameState) {
 			continue
 		}
 		lastRenderedState = &gameState
+
+		duration := gameState.timeStamp.Sub(time.Now())
+		if duration > (time.Second / constants.FPS) {
+			debugger.ReportSkippedFrame()
+			continue
+		}
+
 		rawRGBData := renderFrame(&gameState, width, height)
-		canvasCh <- &encodingutil.Canvas{Data: rawRGBData, Timestamp: time.Now()}
+		canvas := &encodingutil.Canvas{Data: rawRGBData, Timestamp: gameState.timeStamp}
+
+		canvasCh <- canvas
+
 	}
 }

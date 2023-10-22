@@ -1,8 +1,11 @@
 package latencycheck
 
+import "time"
+
 type gameState struct {
 	matrix        [][]int
 	mousePosition position
+	timeStamp     time.Time
 }
 
 func (g *gameState) setAt(pos position, value int) {
@@ -24,13 +27,19 @@ func newGameState(rows, cols int) *gameState {
 		matrix[i] = make([]int, cols)
 	}
 	return &gameState{
-		matrix: matrix,
+		matrix:    matrix,
+		timeStamp: time.Now(),
 	}
 }
 
-func (gs *gameState) handleCommand(command position) bool {
+func (gs *gameState) handleCommand(command *position) bool {
+	gs.timeStamp = time.Now()
+	if command == nil {
+		return true
+	}
 	gs.setAt(gs.mousePosition, 0)
-	gs.setAt(command, 1)
-	gs.mousePosition = command
+	gs.setAt(*command, 1)
+	gs.mousePosition = *command
+
 	return true
 }

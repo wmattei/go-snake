@@ -40,8 +40,9 @@ func (gl *gameLoop) start() {
 		case <-gl.closeSignal:
 			return
 		case command := <-gl.commandChannel:
-			gl.updateGameState(command)
+			gl.updateGameState(&command)
 		case <-gl.frameTicker.C:
+			gl.updateGameState(nil)
 			gl.gameStateCh <- *gl.gameState
 		}
 	}
@@ -51,6 +52,6 @@ func (gl *gameLoop) close() {
 	gl.closeSignal <- true
 }
 
-func (gl *gameLoop) updateGameState(command position) {
+func (gl *gameLoop) updateGameState(command *position) {
 	gl.gameState.handleCommand(command)
 }

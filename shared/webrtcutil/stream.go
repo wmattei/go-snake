@@ -21,7 +21,6 @@ func streamFrame(encodedFrame *Streamable, videoTrack *webrtc.TrackLocalStaticSa
 }
 
 func StartStreaming(encodedFrameCh chan *Streamable, videoTrack *webrtc.TrackLocalStaticSample, debugger *debugutil.Debugger) {
-	var latestTimestamp time.Time
 
 	go func() {
 		for {
@@ -30,15 +29,14 @@ func StartStreaming(encodedFrameCh chan *Streamable, videoTrack *webrtc.TrackLoc
 				break
 			}
 
-			if encodedFrame.Timestamp.Before(latestTimestamp) {
-				// Drop the frame
-				// fmt.Println("Dropping frame..")
+			duration := encodedFrame.Timestamp.Sub(time.Now())
+			if duration > (time.Second / constants.FPS) {
+				debugger.ReportDroppedFrame()
 				continue
 			}
 
-			debugger.ReportFrameStream()
-			latestTimestamp = encodedFrame.Timestamp
 			streamFrame(encodedFrame, videoTrack)
+			debugger.ReportFrameStream()
 		}
 	}()
 }

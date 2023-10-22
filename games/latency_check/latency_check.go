@@ -1,6 +1,9 @@
 package latencycheck
 
-import "github.com/wmattei/go-snake/shared/encodingutil"
+import (
+	"github.com/wmattei/go-snake/shared/debugutil"
+	"github.com/wmattei/go-snake/shared/encodingutil"
+)
 
 type LatencyCheckInit struct {
 	WindowWidth    int
@@ -8,13 +11,15 @@ type LatencyCheckInit struct {
 	CommandChannel <-chan interface{}          // Read only channel
 	CanvasChannel  chan<- *encodingutil.Canvas // Write only channel
 	CloseSignal    chan bool                   // 2 way channel, the game can be closed from the outside (e.g) when the WebRTC connection ends, or from the inside (e.g) when the game is over
+	Debugger       *debugutil.Debugger
 }
 
 type any map[string]interface{}
 
 func StartLatencyCheck(options *LatencyCheckInit) {
-	gameStateCh := make(chan gameState, 1)
-	posCommandCh := make(chan position, 1)
+	// We create a buffered channel that allows up to half a second of unprocessed frames
+	gameStateCh := make(chan gameState)
+	posCommandCh := make(chan position)
 
 	// Convert interface channel into position channel
 	go func() {
@@ -31,12 +36,13 @@ func StartLatencyCheck(options *LatencyCheckInit) {
 		CommandChannel:   posCommandCh,
 		CloseSignal:      options.CloseSignal,
 		GameStateChannel: gameStateCh,
-		Width:            options.WindowWidth, Height: options.WindowHeight,
+		Width:            options.WindowWidth,
+		Height:           options.WindowHeight,
 	}
 	gameLoop := newGameLoop(gameLoopOptions)
 
 	go gameLoop.start()
-	go startFrameRenderer(gameStateCh, options.CanvasChannel, options.WindowWidth, options.WindowHeight)
+	go startFrameRenderer(gameStateCh, options.CanvasChannel, options.WindowWidth, options.WindowHeight, options.Debugger)
 
 	// Wait for close signal
 	<-options.CloseSignal

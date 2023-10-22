@@ -2,7 +2,7 @@ package constants
 
 const SHOULD_RENDER_FRAME = true
 const SHOULD_STREAM_FRAME = true
-const FPS = 90
+const FPS = 60
 const FRAME_WIDTH = 1024
 const FRAME_HEIGHT = 768
 

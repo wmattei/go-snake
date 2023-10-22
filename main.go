@@ -64,9 +64,10 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 					CommandChannel: commandChannel,
 					CanvasChannel:  canvasCh,
 					CloseSignal:    closeSignal,
+					Debugger:       debugger,
 				})
-				go encodingutil.StartEncoder(canvasCh, encodedFrameCh, windowWidth, windowHeight)
-				go webrtcutil.StartStreaming(encodedFrameCh, track, debugger)
+				encodingutil.StartEncoder(canvasCh, encodedFrameCh, windowWidth, windowHeight, debugger)
+				webrtcutil.StartStreaming(encodedFrameCh, track, debugger)
 			} else {
 				// fmt.Println(message.Data.(map[string]interface{})["position"])
 				commandChannel <- message.Data

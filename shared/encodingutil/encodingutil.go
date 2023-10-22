@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pion/webrtc/v3/pkg/media/h264reader"
+	"github.com/wmattei/go-snake/shared/debugutil"
 	"github.com/wmattei/go-snake/shared/logutil"
 	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
@@ -58,14 +59,15 @@ func encodeFrame(rawFrame []byte, windowWidth, windowHeight int) ([]byte, error)
 	return encodedData, nil
 }
 
-func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streamable, windowWidth, windowHeight int) {
+func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streamable, windowWidth, windowHeight int, debugger *debugutil.Debugger) {
 	ffmpegCommand = fmt.Sprintf(ffmpegBaseCommand, windowWidth, windowHeight)
 
 	numWorkers := runtime.NumCPU() / 2
+	// numWorkers := 1
+
+	frameBufferCh := make(chan *Canvas)
 
 	var wg sync.WaitGroup
-
-	var lastTimestamp time.Time
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -79,14 +81,20 @@ func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streama
 					break
 				}
 
-				if canvas.Timestamp.Before(lastTimestamp) {
-					continue
+				// Logic to drop all frames while the workers are busy.
+				// This ensures that only the lates frame will always be processed.
+				select {
+				case frameBufferCh <- canvas:
+					// Frame added to the buffer
+				default:
+					debugger.ReportSkippedFrame()
 				}
+
 				encodedData, err := encodeFrame(canvas.Data, windowWidth, windowHeight)
 				logutil.LogFatal(err)
 				encodedFrameCh <- &webrtcutil.Streamable{Data: encodedData, Timestamp: canvas.Timestamp}
-				lastTimestamp = canvas.Timestamp
 			}
+
 		}()
 	}
 }
