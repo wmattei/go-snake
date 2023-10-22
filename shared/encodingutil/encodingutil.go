@@ -5,12 +5,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"runtime"
-	"sync"
 	"time"
 
-	"github.com/pion/webrtc/v3/pkg/media/h264reader"
+	"github.com/wmattei/go-snake/constants"
 	"github.com/wmattei/go-snake/shared/debugutil"
+	"github.com/wmattei/go-snake/shared/gameutil"
 	"github.com/wmattei/go-snake/shared/logutil"
 	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
@@ -20,118 +19,76 @@ type Canvas struct {
 	Timestamp time.Time
 }
 
-const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate 1 -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -f h264 pipe:1"
+type Encoder struct {
+	encodedFrameCh chan *webrtcutil.Streamable
+	canvasCh       <-chan *Canvas
+	closeSignal    <-chan bool
+	gameMetadata   *gameutil.GameMetadata
+	debugger       *debugutil.Debugger
+}
 
-var ffmpegCommand string
+type EncoderOptions struct {
+	EncodedFrameChannel chan *webrtcutil.Streamable
+	CanvasChannel       <-chan *Canvas
+	CloseSignal         <-chan bool
+	GameMetadata        *gameutil.GameMetadata
+	Debugger            *debugutil.Debugger
+}
 
-func encodeFrame(rawFrame []byte, windowWidth, windowHeight int) ([]byte, error) {
+func NewEncoder(options *EncoderOptions) *Encoder {
+	return &Encoder{
+		encodedFrameCh: options.EncodedFrameChannel,
+		canvasCh:       options.CanvasChannel,
+		gameMetadata:   options.GameMetadata,
+		closeSignal:    options.CloseSignal,
+		debugger:       options.Debugger,
+	}
+}
 
+const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -bufsize 1000k -g 20 -keyint_min 10 -f h264 pipe:1"
+
+func (e *Encoder) Start() {
+	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, e.gameMetadata.WindowWidth, e.gameMetadata.WindowHeight, constants.FPS, constants.FPS)
 	cmd := exec.Command("bash", "-c", ffmpegCommand)
 	cmd.Stderr = os.Stderr
-
 	inPipe, err := cmd.StdinPipe()
 	logutil.LogFatal(err)
 	outPipe, err := cmd.StdoutPipe()
 	logutil.LogFatal(err)
+	err = cmd.Start()
+	logutil.LogFatal(err)
 
-	if err := cmd.Start(); err != nil {
-		logutil.LogFatal(err)
-		return nil, err
-	}
+	go e.writeToFFmpeg(inPipe)
+	go e.streamToWebRTCTrack(outPipe)
+}
 
-	_, err = inPipe.Write(rawFrame)
-	if err != nil {
-		return nil, err
+func (e *Encoder) writeToFFmpeg(inPipe io.WriteCloser) {
+	for canvas := range e.canvasCh {
+		select {
+		case <-e.encodedFrameCh: // Check if there's a backlog.
+			e.debugger.ReportDroppedFrame()
+			continue
+		default:
+			_, err := inPipe.Write(canvas.Data)
+			logutil.LogFatal(err)
+		}
 	}
 
 	inPipe.Close()
-
-	encodedData, err := readH264NALUnits(outPipe)
-	if err != nil {
-		return nil, err
-	}
-
-	err = cmd.Wait()
-	if err != nil {
-		return nil, err
-	}
-
-	return encodedData, nil
 }
 
-func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streamable, windowWidth, windowHeight int, debugger *debugutil.Debugger) {
-	ffmpegCommand = fmt.Sprintf(ffmpegBaseCommand, windowWidth, windowHeight)
-
-	numWorkers := runtime.NumCPU() / 2
-
-	var wg sync.WaitGroup
-	frameBufferCh := make(chan *Canvas)
-
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-
-		go func() {
-			for canvas := range frameBufferCh {
-				encodedData, err := encodeFrame(canvas.Data, windowWidth, windowHeight)
-				logutil.LogFatal(err)
-				encodedFrameCh <- &webrtcutil.Streamable{Data: encodedData, Timestamp: canvas.Timestamp}
-			}
-		}()
-
-		go func() {
-			defer wg.Done()
-			for {
-				canvas, more := <-canvasCh
-				if !more {
-					// Channel closed, exit the loop
-					break
-				}
-
-				// Logic to drop all frames while the workers are busy.
-				// This ensures that only the lates frame will always be processed.
-				select {
-				case frameBufferCh <- canvas:
-					// Block until the frame is sent to the workers
-				default:
-					debugger.ReportDroppedFrame()
-				}
-
-			}
-
-		}()
-	}
-}
-
-func readH264NALUnits(outPipe io.Reader) ([]byte, error) {
-	h264, err := h264reader.NewReader(outPipe)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create H.264 reader: %v", err)
-	}
-
-	var data []byte
-	var spsAndPpsCache []byte
-
+func (e *Encoder) streamToWebRTCTrack(outPipe io.Reader) {
+	buf := make([]byte, 1024*8)
 	for {
-		nal, h264Err := h264.NextNAL()
-		if h264Err == io.EOF {
-			// Finished sending frames
+		timestamp := time.Now()
+		n, err := outPipe.Read(buf)
+		if err == io.EOF {
 			break
-		} else if h264Err != nil {
-			return nil, fmt.Errorf("error reading H.264 NAL: %v", h264Err)
-		}
-
-		nal.Data = append([]byte{0x00, 0x00, 0x00, 0x01}, nal.Data...)
-		if nal.UnitType == h264reader.NalUnitTypeSPS || nal.UnitType == h264reader.NalUnitTypePPS {
-			spsAndPpsCache = append(spsAndPpsCache, nal.Data...)
+		} else if err != nil {
+			logutil.LogFatal(fmt.Errorf("error reading from FFmpeg: %v", err))
 			continue
-		} else if nal.UnitType == h264reader.NalUnitTypeCodedSliceIdr {
-			nal.Data = append(spsAndPpsCache, nal.Data...)
-			spsAndPpsCache = []byte{}
 		}
 
-		// Append NAL unit data to the result
-		data = append(data, nal.Data...)
+		e.encodedFrameCh <- &webrtcutil.Streamable{Data: buf[:n], Timestamp: timestamp}
 	}
-
-	return data, nil
 }

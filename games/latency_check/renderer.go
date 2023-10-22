@@ -2,6 +2,7 @@ package latencycheck
 
 import (
 	"image/color"
+	"sync"
 	"time"
 
 	"github.com/wmattei/go-snake/constants"
@@ -59,27 +60,50 @@ func renderFrame(gs *gameState, width, height int) []byte {
 	return rawRGBData
 }
 
+const numWorkers = 4
+
 func startFrameRenderer(gameStateCh chan gameState, canvasCh chan<- *encodingutil.Canvas, width, height int, debugger *debugutil.Debugger) {
+	var wg sync.WaitGroup
+	workerCh := make(chan gameState)
+
 	var lastRenderedState *gameState
 
-	for {
-		gameState := <-gameStateCh
-
-		if lastRenderedState != nil && !hasStateChanged(lastRenderedState, &gameState) {
-			continue
-		}
-		lastRenderedState = &gameState
-
-		duration := gameState.timeStamp.Sub(time.Now())
-		if duration > (time.Second / constants.FPS) {
-			debugger.ReportSkippedFrame()
-			continue
-		}
-
-		rawRGBData := renderFrame(&gameState, width, height)
-		canvas := &encodingutil.Canvas{Data: rawRGBData, Timestamp: gameState.timeStamp}
-
-		canvasCh <- canvas
-
+	// Start workers
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for gameState := range workerCh {
+				if lastRenderedState != nil && !hasStateChanged(lastRenderedState, &gameState) {
+					debugger.ReportSkippedFrame()
+					continue
+				}
+				lastRenderedState = &gameState
+				processGameState(gameState, canvasCh, width, height, debugger)
+			}
+		}()
 	}
+
+	// Distribute game states among workers
+	for gameState := range gameStateCh {
+		workerCh <- gameState
+	}
+
+	close(workerCh)
+	wg.Wait()
+}
+
+func processGameState(gameState gameState, canvasCh chan<- *encodingutil.Canvas, width, height int, debugger *debugutil.Debugger) {
+	duration := gameState.timeStamp.Sub(time.Now())
+	if duration > (time.Second / constants.FPS) {
+		debugger.ReportSkippedFrame()
+		return
+	}
+
+	rawRGBData := renderFrame(&gameState, width, height)
+	canvas := &encodingutil.Canvas{Data: rawRGBData, Timestamp: gameState.timeStamp}
+
+	debugger.ReportRenderedCanvas()
+
+	canvasCh <- canvas
 }

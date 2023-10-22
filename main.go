@@ -10,6 +10,7 @@ import (
 	latencycheck "github.com/wmattei/go-snake/games/latency_check"
 	"github.com/wmattei/go-snake/shared/debugutil"
 	"github.com/wmattei/go-snake/shared/encodingutil"
+	"github.com/wmattei/go-snake/shared/gameutil"
 	"github.com/wmattei/go-snake/shared/logutil"
 	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
@@ -29,7 +30,6 @@ func handleWebsocketConnection(w http.ResponseWriter, r *http.Request) {
 	logutil.LogFatal(err)
 
 	track := peerConnection.GetSenders()[0].Track().(*webrtc.TrackLocalStaticSample)
-	fmt.Println("Peer connection established")
 
 	handleDataChannel(peerConnection, track)
 }
@@ -66,7 +66,15 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 					CloseSignal:    closeSignal,
 					Debugger:       debugger,
 				})
-				encodingutil.StartEncoder(canvasCh, encodedFrameCh, windowWidth, windowHeight, debugger)
+				gameMetadata := gameutil.NewGameMetadata(windowWidth, windowHeight, "latency_check")
+				encoder := encodingutil.NewEncoder(&encodingutil.EncoderOptions{
+					EncodedFrameChannel: encodedFrameCh,
+					CanvasChannel:       canvasCh,
+					CloseSignal:         closeSignal,
+					GameMetadata:        gameMetadata,
+					Debugger:            debugger,
+				})
+				encoder.Start()
 				webrtcutil.StartStreaming(encodedFrameCh, track, debugger)
 			} else {
 				// fmt.Println(message.Data.(map[string]interface{})["position"])

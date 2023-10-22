@@ -1,6 +1,8 @@
 package latencycheck
 
-import "time"
+import (
+	"time"
+)
 
 type gameState struct {
 	matrix        [][]int
