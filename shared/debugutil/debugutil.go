@@ -91,7 +91,7 @@ func (d *Debugger) getFpsStat() string {
 	}
 
 	d.frameCounter = 0
-	return fmt.Sprintf("Frame rate: %s%.2f%s / %v FPS", colorCode, frameRate, RESET_COLOR, constants.FPS)
+	return fmt.Sprintf("Frames streamed: %s%.2f%s / %v FPS", colorCode, frameRate, RESET_COLOR, constants.FPS)
 }
 
 func (d *Debugger) getDroppedFramesStat() string {

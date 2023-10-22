@@ -45,7 +45,7 @@ func NewEncoder(options *EncoderOptions) *Encoder {
 	}
 }
 
-const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -bufsize 1000k -g 20 -keyint_min 10 -f h264 pipe:1"
+const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -bufsize 1000k -g 10 -keyint_min 5 -maxrate 1000k -f h264 pipe:1"
 
 func (e *Encoder) Start() {
 	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, e.gameMetadata.WindowWidth, e.gameMetadata.WindowHeight, constants.FPS, constants.FPS)

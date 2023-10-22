@@ -21,7 +21,6 @@ func streamFrame(encodedFrame *Streamable, videoTrack *webrtc.TrackLocalStaticSa
 }
 
 func StartStreaming(encodedFrameCh chan *Streamable, videoTrack *webrtc.TrackLocalStaticSample, debugger *debugutil.Debugger) {
-
 	go func() {
 		for {
 			encodedFrame := <-encodedFrameCh
