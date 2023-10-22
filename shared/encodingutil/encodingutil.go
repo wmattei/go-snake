@@ -63,14 +63,20 @@ func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streama
 	ffmpegCommand = fmt.Sprintf(ffmpegBaseCommand, windowWidth, windowHeight)
 
 	numWorkers := runtime.NumCPU() / 2
-	// numWorkers := 1
-
-	frameBufferCh := make(chan *Canvas)
 
 	var wg sync.WaitGroup
+	frameBufferCh := make(chan *Canvas)
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
+
+		go func() {
+			for canvas := range frameBufferCh {
+				encodedData, err := encodeFrame(canvas.Data, windowWidth, windowHeight)
+				logutil.LogFatal(err)
+				encodedFrameCh <- &webrtcutil.Streamable{Data: encodedData, Timestamp: canvas.Timestamp}
+			}
+		}()
 
 		go func() {
 			defer wg.Done()
@@ -85,14 +91,11 @@ func StartEncoder(canvasCh chan *Canvas, encodedFrameCh chan *webrtcutil.Streama
 				// This ensures that only the lates frame will always be processed.
 				select {
 				case frameBufferCh <- canvas:
-					// Frame added to the buffer
+					// Block until the frame is sent to the workers
 				default:
-					debugger.ReportSkippedFrame()
+					debugger.ReportDroppedFrame()
 				}
 
-				encodedData, err := encodeFrame(canvas.Data, windowWidth, windowHeight)
-				logutil.LogFatal(err)
-				encodedFrameCh <- &webrtcutil.Streamable{Data: encodedData, Timestamp: canvas.Timestamp}
 			}
 
 		}()

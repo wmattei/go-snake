@@ -61,17 +61,9 @@ func renderFrame(gs *gameState, width, height int) []byte {
 
 func startFrameRenderer(gameStateCh chan gameState, canvasCh chan<- *encodingutil.Canvas, width, height int, debugger *debugutil.Debugger) {
 	var lastRenderedState *gameState
-	statePerSecond := 0
 
 	for {
 		gameState := <-gameStateCh
-		// fmt.Println(gameState.timeStamp)
-		if lastRenderedState != nil && lastRenderedState.timeStamp.Second() == gameState.timeStamp.Second() {
-			statePerSecond++
-		} else {
-			// fmt.Println("State per second:", statePerSecond)
-			statePerSecond = 0
-		}
 
 		if lastRenderedState != nil && !hasStateChanged(lastRenderedState, &gameState) {
 			continue
