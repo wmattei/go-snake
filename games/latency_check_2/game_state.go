@@ -1,8 +1,11 @@
-package latency_check
+package main
 
-import (
-	"time"
-)
+import "time"
+
+type position struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
 
 type gameState struct {
 	matrix        [][]int
@@ -18,27 +21,25 @@ func (g *gameState) GetMatrix() [][]int {
 	return g.matrix
 }
 
-type position struct {
-	X int `json:"x"`
-	Y int `json:"y"`
-}
-
-func newGameState(rows, cols int) *gameState {
-	matrix := make([][]int, rows)
+func newGameState(height, width int) *gameState {
+	matrix := make([][]int, height)
 	for i := range matrix {
-		matrix[i] = make([]int, cols)
+		matrix[i] = make([]int, width)
 	}
-	return &gameState{
-		matrix:    matrix,
-		timeStamp: time.Now(),
+	gs := &gameState{
+		matrix:        matrix,
+		mousePosition: position{50, 50},
 	}
+	gs.setAt(gs.mousePosition, 1)
+	return gs
 }
 
-func (gs *gameState) handleCommand(command *position) bool {
+func (gs *gameState) update(command *position) bool {
 	gs.timeStamp = time.Now()
 	if command == nil {
 		return true
 	}
+
 	gs.setAt(gs.mousePosition, 0)
 	gs.setAt(*command, 1)
 	gs.mousePosition = *command

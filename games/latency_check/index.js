@@ -91,7 +91,6 @@ const handleAnswerMessage = async (answerData) => {
 };
 
 function sendCommand(type, data) {
-  console.log(data);
   dataChannel.send(JSON.stringify({ type, data }));
 }
 
@@ -104,7 +103,7 @@ function createDataChannel(peerConnection) {
   };
 
   dataChannel.onopen = () => {
-    sendCommand("start", {
+    sendCommand("ping", {
       width: window.innerWidth,
       height: window.innerHeight,
     });

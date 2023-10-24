@@ -10,7 +10,7 @@ import (
 	latencycheck "github.com/wmattei/go-snake/games/latency_check"
 	"github.com/wmattei/go-snake/shared/debugutil"
 	"github.com/wmattei/go-snake/shared/encodingutil"
-	"github.com/wmattei/go-snake/shared/gameutil"
+	"github.com/wmattei/go-snake/shared/gamerunner"
 	"github.com/wmattei/go-snake/shared/logutil"
 	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
@@ -66,7 +66,7 @@ func handleDataChannel(peerConnection *webrtc.PeerConnection, track *webrtc.Trac
 					CloseSignal:    closeSignal,
 					Debugger:       debugger,
 				})
-				gameMetadata := gameutil.NewGameMetadata(windowWidth, windowHeight, "latency_check")
+				gameMetadata := &gamerunner.GameMetadata{WindowWidth: windowWidth, WindowHeight: windowHeight, GameName: "latency_check"}
 				encoder := encodingutil.NewEncoder(&encodingutil.EncoderOptions{
 					EncodedFrameChannel: encodedFrameCh,
 					CanvasChannel:       canvasCh,

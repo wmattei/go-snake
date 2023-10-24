@@ -1,4 +1,4 @@
-package latencycheck
+package latency_check
 
 import (
 	"github.com/wmattei/go-snake/shared/debugutil"
@@ -17,7 +17,6 @@ type LatencyCheckInit struct {
 type any map[string]interface{}
 
 func StartLatencyCheck(options *LatencyCheckInit) {
-	// We create a buffered channel that allows up to half a second of unprocessed frames
 	gameStateCh := make(chan gameState)
 	posCommandCh := make(chan position)
 

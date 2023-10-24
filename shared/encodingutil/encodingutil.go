@@ -9,7 +9,6 @@ import (
 
 	"github.com/wmattei/go-snake/constants"
 	"github.com/wmattei/go-snake/shared/debugutil"
-	"github.com/wmattei/go-snake/shared/gameutil"
 	"github.com/wmattei/go-snake/shared/logutil"
 	"github.com/wmattei/go-snake/shared/webrtcutil"
 )
@@ -23,7 +22,8 @@ type Encoder struct {
 	encodedFrameCh chan *webrtcutil.Streamable
 	canvasCh       <-chan *Canvas
 	closeSignal    <-chan bool
-	gameMetadata   *gameutil.GameMetadata
+	windowWidth    int
+	windowHeight   int
 	debugger       *debugutil.Debugger
 }
 
@@ -31,7 +31,8 @@ type EncoderOptions struct {
 	EncodedFrameChannel chan *webrtcutil.Streamable
 	CanvasChannel       <-chan *Canvas
 	CloseSignal         <-chan bool
-	GameMetadata        *gameutil.GameMetadata
+	WindowWidth         int
+	WindowHeight        int
 	Debugger            *debugutil.Debugger
 }
 
@@ -39,16 +40,17 @@ func NewEncoder(options *EncoderOptions) *Encoder {
 	return &Encoder{
 		encodedFrameCh: options.EncodedFrameChannel,
 		canvasCh:       options.CanvasChannel,
-		gameMetadata:   options.GameMetadata,
 		closeSignal:    options.CloseSignal,
 		debugger:       options.Debugger,
+		windowWidth:    options.WindowWidth,
+		windowHeight:   options.WindowHeight,
 	}
 }
 
 const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -bufsize 1000k -g 10 -keyint_min 5 -maxrate 1000k -f h264 pipe:1"
 
 func (e *Encoder) Start() {
-	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, e.gameMetadata.WindowWidth, e.gameMetadata.WindowHeight, constants.FPS, constants.FPS)
+	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, e.windowWidth, e.windowHeight, constants.FPS, constants.FPS)
 	cmd := exec.Command("bash", "-c", ffmpegCommand)
 	cmd.Stderr = os.Stderr
 	inPipe, err := cmd.StdinPipe()

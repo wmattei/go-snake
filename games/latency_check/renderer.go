@@ -1,4 +1,4 @@
-package latencycheck
+package latency_check
 
 import (
 	"image/color"
