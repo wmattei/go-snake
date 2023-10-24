@@ -1,6 +1,8 @@
 package main
 
-import "time"
+import (
+	"time"
+)
 
 type position struct {
 	X int `json:"x"`
@@ -30,7 +32,6 @@ func newGameState(height, width int) *gameState {
 		matrix:        matrix,
 		mousePosition: position{50, 50},
 	}
-	gs.setAt(gs.mousePosition, 1)
 	return gs
 }
 

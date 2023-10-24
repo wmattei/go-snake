@@ -22,9 +22,10 @@ type Game interface {
 }
 
 type GameRunner struct {
-	Game     Game
-	Debugger *debugutil.Debugger
-	Signaler signaling_server.SignalingServer
+	Game      Game
+	Debugger  *debugutil.Debugger
+	Signaler  signaling_server.SignalingServer
+	CommandCh chan interface{}
 
 	playerConnectedCallback func(player *Player)
 	player                  *Player
@@ -32,7 +33,6 @@ type GameRunner struct {
 	encodedFrameCh          chan *webrtcutil.Streamable
 	closeSignal             chan bool
 	gameStateCh             chan interface{}
-	commandCh               chan interface{}
 }
 
 type GameRunnerOptions struct {
@@ -74,7 +74,7 @@ func NewGameRunner(game Game, options *GameRunnerOptions) *GameRunner {
 		encodedFrameCh: make(chan *webrtcutil.Streamable),
 		closeSignal:    make(chan bool),
 		gameStateCh:    make(chan interface{}),
-		commandCh:      make(chan interface{}),
+		CommandCh:      make(chan interface{}),
 	}
 }
 
@@ -90,7 +90,7 @@ func (g *GameRunner) StartEngine(initialGameState interface{}) {
 		closeSignal:    g.closeSignal,
 		game:           g.Game,
 		gameStateCh:    g.gameStateCh,
-		commandChannel: g.commandCh,
+		commandChannel: g.CommandCh,
 	}
 	go gameLoop.start()
 
@@ -112,7 +112,6 @@ func (g *GameRunner) OpenLobby() {
 				fmt.Println("Error unmarshalling message:", err)
 				return
 			}
-			fmt.Println("Message received:", string(msg.Data))
 
 			if message.Type == "ping" {
 				windowWidth := int(message.Data.(map[string]interface{})["width"].(float64))
@@ -143,8 +142,7 @@ func (g *GameRunner) OpenLobby() {
 				track := g.Signaler.GetVideoTrack()
 				webrtcutil.StartStreaming(g.encodedFrameCh, track, g.Debugger)
 			} else {
-				// fmt.Println(message.Data.(map[string]interface{})["position"])
-				g.commandCh <- message.Data
+				g.CommandCh <- message.Data
 			}
 		})
 	})

@@ -25,7 +25,6 @@ func (gl *gameLoop) start() {
 			return
 		case command := <-gl.commandChannel:
 			gl.game.UpdateGameState(gl.gameState, command, frameDuration.Milliseconds())
-			gl.gameStateCh <- *gl.gameState
 		case <-ticker.C:
 			gl.game.UpdateGameState(gl.gameState, nil, frameDuration.Milliseconds())
 			gl.gameStateCh <- *gl.gameState
