@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wmattei/go-snake/shared/debugutil"
 	"github.com/wmattei/go-snake/shared/encodingutil"
 )
 
@@ -17,6 +18,7 @@ type gameRenderer struct {
 	rawFrameCh  chan<- *encodingutil.Canvas
 	game        Game
 	window      *Window
+	debugger    *debugutil.Debugger
 }
 
 const numWorkers = 4
@@ -32,6 +34,10 @@ func (gr *gameRenderer) start() {
 			defer wg.Done()
 			for gameState := range workerCh {
 				frame := gr.game.RenderFrame(&gameState, gr.window)
+				if frame == nil {
+					gr.debugger.ReportSkippedFrame()
+					continue
+				}
 				gr.rawFrameCh <- &encodingutil.Canvas{Data: frame, Timestamp: time.Now()}
 			}
 		}()

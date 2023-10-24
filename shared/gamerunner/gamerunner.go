@@ -83,7 +83,7 @@ func (g *GameRunner) OnPlayerJoined(callback func(player *Player)) {
 }
 
 func (g *GameRunner) StartEngine(initialGameState interface{}) {
-	// go g.Debugger.StartDebugger()
+	go g.Debugger.StartDebugger()
 
 	gameLoop := &gameLoop{
 		gameState:      &initialGameState,
@@ -99,6 +99,7 @@ func (g *GameRunner) StartEngine(initialGameState interface{}) {
 		rawFrameCh:  g.rawFrameCh,
 		game:        g.Game,
 		window:      &g.player.Window,
+		debugger:    g.Debugger,
 	}
 	go gameRenderer.start()
 }

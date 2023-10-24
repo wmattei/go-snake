@@ -15,6 +15,13 @@ type gameState struct {
 	timeStamp     time.Time
 }
 
+func (g *gameState) isEqual(other *gameState) bool {
+	if g.mousePosition.X == other.mousePosition.X && g.mousePosition.Y == other.mousePosition.Y {
+		return true
+	}
+	return false
+}
+
 func (g *gameState) setAt(pos position, value int) {
 	g.matrix[pos.Y][pos.X] = value
 }

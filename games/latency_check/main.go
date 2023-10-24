@@ -4,7 +4,9 @@ import (
 	"github.com/wmattei/go-snake/shared/gamerunner"
 )
 
-type LatencyCheckGame struct{}
+type LatencyCheckGame struct {
+	lastRenderedState *gameState
+}
 
 func (lcg *LatencyCheckGame) UpdateGameState(gs *interface{}, command interface{}, dt int64) {
 	state, _ := (*gs).(*gameState)
@@ -19,6 +21,13 @@ func (lcg *LatencyCheckGame) UpdateGameState(gs *interface{}, command interface{
 
 func (lcg *LatencyCheckGame) RenderFrame(gs *interface{}, window *gamerunner.Window) []byte {
 	state, _ := (*gs).(*gameState)
+
+	if lcg.lastRenderedState != nil && lcg.lastRenderedState.isEqual(state) {
+		return nil
+	}
+
+	newState := *state
+	lcg.lastRenderedState = &newState
 	return renderFrame(state, window.Width, window.Height)
 }
 
