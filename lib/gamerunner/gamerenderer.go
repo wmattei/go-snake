@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wmattei/go-snake/shared/debugutil"
-	"github.com/wmattei/go-snake/shared/encodingutil"
+	"github.com/wmattei/go-snake/lib/debugutil"
+	"github.com/wmattei/go-snake/lib/encodingutil"
 )
 
 type Window struct {

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/wmattei/go-snake/constants"
-	"github.com/wmattei/go-snake/shared/debugutil"
-	"github.com/wmattei/go-snake/shared/logutil"
-	"github.com/wmattei/go-snake/shared/webrtcutil"
+	"github.com/wmattei/go-snake/lib/debugutil"
+	"github.com/wmattei/go-snake/lib/logutil"
+	"github.com/wmattei/go-snake/lib/webrtcutil"
 )
 
 type Canvas struct {

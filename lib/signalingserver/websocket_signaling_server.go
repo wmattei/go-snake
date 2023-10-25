@@ -7,7 +7,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
-	"github.com/wmattei/go-snake/shared/logutil"
+	"github.com/wmattei/go-snake/lib/logutil"
 )
 
 type WebSocketSignalingServer struct {

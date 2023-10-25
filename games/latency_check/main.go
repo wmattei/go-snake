@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/wmattei/go-snake/shared/gamerunner"
+	"github.com/wmattei/go-snake/lib/gamerunner"
 )
 
 type LatencyCheckGame struct {

@@ -6,7 +6,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 	"github.com/wmattei/go-snake/constants"
-	"github.com/wmattei/go-snake/shared/debugutil"
+	"github.com/wmattei/go-snake/lib/debugutil"
 )
 
 type Streamable struct {

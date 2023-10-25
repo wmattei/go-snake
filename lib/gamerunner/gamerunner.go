@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/pion/webrtc/v3"
-	"github.com/wmattei/go-snake/shared/debugutil"
-	"github.com/wmattei/go-snake/shared/encodingutil"
-	signaling_server "github.com/wmattei/go-snake/shared/signalingserver"
-	"github.com/wmattei/go-snake/shared/webrtcutil"
+	"github.com/wmattei/go-snake/lib/debugutil"
+	"github.com/wmattei/go-snake/lib/encodingutil"
+	signaling_server "github.com/wmattei/go-snake/lib/signalingserver"
+	"github.com/wmattei/go-snake/lib/webrtcutil"
 )
 
 type GameMetadata struct {
