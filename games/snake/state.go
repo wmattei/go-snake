@@ -1,4 +1,4 @@
-package snake
+package main
 
 import "math/rand"
 
@@ -20,7 +20,7 @@ const (
 	right direction = "RIGHT"
 )
 
-type GameState struct {
+type gameState struct {
 	snakeDirection direction
 	snakeSize      int
 	snake          []position
@@ -30,7 +30,7 @@ type GameState struct {
 	foodPosition   position
 }
 
-func newGameState(rows, cols int) *GameState {
+func newGameState(rows, cols int) *gameState {
 	matrix := make([][]int, rows)
 	for i := range matrix {
 		matrix[i] = make([]int, cols)
@@ -38,7 +38,7 @@ func newGameState(rows, cols int) *GameState {
 	headPos := position{X: cols / 2, Y: rows / 2}
 	snake := []position{headPos}
 
-	state := &GameState{
+	state := &gameState{
 		snakeDirection: right,
 		snakeSize:      3,
 		matrix:         matrix,
@@ -59,39 +59,39 @@ func newGameState(rows, cols int) *GameState {
 	return state
 }
 
-func (g *GameState) GetMatrix() [][]int {
+func (g *gameState) GetMatrix() [][]int {
 	return g.matrix
 }
 
-func (g *GameState) setAt(pos position, value int) {
+func (g *gameState) setAt(pos position, value int) {
 	g.matrix[pos.Y][pos.X] = value
 }
 
-func (g *GameState) at(pos position) int {
+func (g *gameState) at(pos position) int {
 	return g.matrix[pos.Y][pos.X]
 }
 
-func (g *GameState) LastSnakePart() position {
+func (g *gameState) LastSnakePart() position {
 	return g.snake[len(g.snake)-1]
 }
 
-func (g *GameState) IsHeadingUp() bool {
+func (g *gameState) IsHeadingUp() bool {
 	return g.snakeDirection == up
 }
 
-func (g *GameState) IsHeadingDown() bool {
+func (g *gameState) IsHeadingDown() bool {
 	return g.snakeDirection == down
 }
 
-func (g *GameState) IsHeadingLeft() bool {
+func (g *gameState) IsHeadingLeft() bool {
 	return g.snakeDirection == left
 }
 
-func (g *GameState) IsHeadingRight() bool {
+func (g *gameState) IsHeadingRight() bool {
 	return g.snakeDirection == right
 }
 
-func (g *GameState) generateFood() {
+func (g *gameState) generateFood() {
 	randomX := rand.Intn(g.cols)
 	randomY := rand.Intn(g.rows)
 	pos := position{X: randomX, Y: randomY}
@@ -104,7 +104,7 @@ func (g *GameState) generateFood() {
 	g.setAt(g.foodPosition, 3)
 }
 
-func (g *GameState) validateNewDirection(newDirection direction) bool {
+func (g *gameState) validateNewDirection(newDirection direction) bool {
 	if g.IsHeadingUp() && newDirection == down {
 		return false
 	}
@@ -120,7 +120,7 @@ func (g *GameState) validateNewDirection(newDirection direction) bool {
 	return true
 }
 
-func (g *GameState) updateGameState(command *string) bool {
+func (g *gameState) updateGameState(command *string) bool {
 	if command != nil && g.validateNewDirection(direction(*command)) {
 		g.snakeDirection = direction(*command)
 	}
@@ -129,7 +129,7 @@ func (g *GameState) updateGameState(command *string) bool {
 	return !collided
 }
 
-func (g *GameState) move() bool {
+func (g *gameState) move() bool {
 	headPos := g.snake[0]
 	g.setAt(headPos, 2)
 	switch g.snakeDirection {
@@ -161,6 +161,6 @@ func (g *GameState) move() bool {
 	return false
 }
 
-func (g *GameState) handleCommand(command *string) bool {
+func (g *gameState) handleCommand(command *string) bool {
 	return g.updateGameState(command)
 }

@@ -90,8 +90,8 @@ const handleAnswerMessage = async (answerData) => {
   await peerConnection.setRemoteDescription(remoteDescription);
 };
 
-function sendCommand(command) {
-  dataChannel.send(JSON.stringify({ type: "command", data: command }));
+function sendCommand(type, data) {
+  dataChannel.send(JSON.stringify({ type, data }));
 }
 
 function createDataChannel(peerConnection) {
@@ -100,6 +100,13 @@ function createDataChannel(peerConnection) {
 
   dataChannel.onerror = (error) => {
     console.log("Error on data channel:", error);
+  };
+
+  dataChannel.onopen = () => {
+    sendCommand("ping", {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
   };
 
   dataChannel.onclose = () => {
@@ -114,13 +121,13 @@ function keyBindings() {
   document.addEventListener("keydown", (event) => {
     // Send command based on key press
     if (event.key === "ArrowUp") {
-      sendCommand("UP");
+      sendCommand("CHANGE_DIR", { dir: "UP" });
     } else if (event.key === "ArrowDown") {
-      sendCommand("DOWN");
+      sendCommand("CHANGE_DIR", { dir: "DOWN" });
     } else if (event.key === "ArrowLeft") {
-      sendCommand("LEFT");
+      sendCommand("CHANGE_DIR", { dir: "LEFT" });
     } else if (event.key === "ArrowRight") {
-      sendCommand("RIGHT");
+      sendCommand("CHANGE_DIR", { dir: "RIGHT" });
     }
   });
 }

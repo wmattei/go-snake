@@ -83,7 +83,7 @@ func (g *GameRunner) OnPlayerJoined(callback func(player *Player)) {
 }
 
 func (g *GameRunner) StartEngine(initialGameState interface{}) {
-	go g.Debugger.StartDebugger()
+	// go g.Debugger.StartDebugger()
 
 	gameLoop := &gameLoop{
 		gameState:      &initialGameState,
@@ -115,6 +115,7 @@ func (g *GameRunner) OpenLobby() {
 			}
 
 			if message.Type == "ping" {
+				fmt.Println("Received ping")
 				windowWidth := int(message.Data.(map[string]interface{})["width"].(float64))
 				windowHeight := int(message.Data.(map[string]interface{})["height"].(float64))
 

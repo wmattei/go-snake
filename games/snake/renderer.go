@@ -1,72 +1,51 @@
-package snake
+package main
 
 import (
 	"image"
-	"image/color"
 
 	"github.com/wmattei/go-snake/constants"
 )
 
 var (
-	snakeHeadColor = color.RGBA{R: 255, G: 0, B: 0, A: 255}
-	snakeBodyColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
-	foodColor      = color.RGBA{R: 0, G: 255, B: 0, A: 255}
+	snakeHeadColor = [3]byte{255, 0, 0}
+	snakeBodyColor = [3]byte{255, 255, 255}
+	foodColor      = [3]byte{0, 255, 0}
 )
 
 const bytesPerPixel = 3 // RGB: 3 bytes per pixel
 
-func drawRectangle(img *image.RGBA, min, max image.Point, col color.RGBA) {
-	for x := min.X; x < max.X; x++ {
-		for y := min.Y; y < max.Y; y++ {
-			img.Set(x, y, col)
+func drawRectangle(rawRGBData []byte, width int, min, max image.Point, col [3]byte) {
+	for y := min.Y; y < max.Y; y++ {
+		for x := min.X; x < max.X; x++ {
+			idx := (y*width + x) * bytesPerPixel
+			rawRGBData[idx] = col[0]
+			rawRGBData[idx+1] = col[1]
+			rawRGBData[idx+2] = col[2]
 		}
 	}
 }
 
-func convertRGBAtoRGB(img *image.RGBA) []byte {
-	width, height := img.Rect.Dx(), img.Rect.Dy()
-	rawRGBData := make([]byte, bytesPerPixel*width*height)
+func renderFrame(gameState *gameState, width, height int) []byte {
+	// startedAt := time.Now()
+	// defer logutil.LogTimeElapsed(startedAt, "renderFrame")
 
-	idx := 0
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			pixel := img.RGBAAt(x, y)
-			rawRGBData[idx] = pixel.R
-			rawRGBData[idx+1] = pixel.G
-			rawRGBData[idx+2] = pixel.B
-			idx += bytesPerPixel
+	rawRGBData := make([]byte, bytesPerPixel*width*height)
+	matrix := gameState.GetMatrix()
+
+	for y := 0; y < len(matrix); y++ {
+		for x := 0; x < len(matrix[0]); x++ {
+			rectMin := image.Point{X: x * constants.CHUNK_SIZE, Y: y * constants.CHUNK_SIZE}
+			rectMax := image.Point{X: rectMin.X + constants.CHUNK_SIZE, Y: rectMin.Y + constants.CHUNK_SIZE}
+			switch matrix[y][x] {
+			case 1:
+				drawRectangle(rawRGBData, width, rectMin, rectMax, snakeHeadColor)
+			case 2:
+				drawRectangle(rawRGBData, width, rectMin, rectMax, snakeBodyColor)
+			case 3:
+				drawRectangle(rawRGBData, width, rectMin, rectMax, foodColor)
+			}
 		}
 	}
 
 	return rawRGBData
-}
-
-func startFrameRenderer(gameStateCh chan *GameState, pixelCh chan []byte) {
-	for {
-		gameState := <-gameStateCh
-		if gameState == nil {
-			break
-		}
-
-		img := image.NewRGBA(image.Rect(0, 0, constants.FRAME_WIDTH, constants.FRAME_HEIGHT))
-		matrix := gameState.GetMatrix()
-
-		for y := 0; y < len(matrix); y++ {
-			for x := 0; x < len(matrix[0]); x++ {
-				rectMin := image.Point{X: x * constants.CHUNK_SIZE, Y: y * constants.CHUNK_SIZE}
-				rectMax := image.Point{X: rectMin.X + constants.CHUNK_SIZE, Y: rectMin.Y + constants.CHUNK_SIZE}
-				switch matrix[y][x] {
-				case 1:
-					drawRectangle(img, rectMin, rectMax, snakeHeadColor)
-				case 2:
-					drawRectangle(img, rectMin, rectMax, snakeBodyColor)
-				case 3:
-					drawRectangle(img, rectMin, rectMax, foodColor)
-				}
-			}
-		}
-
-		rawRGBData := convertRGBAtoRGB(img)
-		pixelCh <- rawRGBData
-	}
 }
