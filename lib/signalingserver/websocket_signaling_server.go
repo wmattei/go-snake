@@ -1,7 +1,6 @@
 package signaling_server
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 
@@ -124,12 +123,6 @@ func (ws *WebSocketSignalingServer) createPeerConnection() error {
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		if ws.onDataChannel != nil {
 			ws.onDataChannel(dc)
-		}
-	})
-
-	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-		if state == webrtc.PeerConnectionStateConnected {
-			fmt.Println("Connected")
 		}
 	})
 

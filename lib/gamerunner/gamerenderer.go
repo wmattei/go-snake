@@ -38,6 +38,7 @@ func (gr *gameRenderer) start() {
 					gr.debugger.ReportSkippedFrame()
 					continue
 				}
+				gr.debugger.ReportRenderedCanvas()
 				gr.rawFrameCh <- &encodingutil.Canvas{Data: frame, Timestamp: time.Now()}
 			}
 		}()

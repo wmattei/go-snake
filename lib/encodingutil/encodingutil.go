@@ -47,10 +47,16 @@ func NewEncoder(options *EncoderOptions) *Encoder {
 	}
 }
 
-const ffmpegBaseCommand = "ffmpeg -hide_banner -loglevel error -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -c:v libx264 -preset ultrafast -tune zerolatency -bufsize 1000k -g 10 -keyint_min 5 -maxrate 1000k -f h264 pipe:1"
+const ffmpegBaseCommand = "ffmpeg %v -threads 0 -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -pix_fmt yuv420p -c:v h264_videotoolbox -b:v 5000k -f h264 pipe:1"
 
 func (e *Encoder) Start() {
-	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, e.windowWidth, e.windowHeight, constants.FPS, constants.FPS)
+
+	debug := "-hide_banner -loglevel error"
+	if constants.FFMPEG_BANNER {
+		debug = ""
+	}
+
+	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, debug, e.windowWidth, e.windowHeight, constants.FPS, constants.FPS)
 	cmd := exec.Command("bash", "-c", ffmpegCommand)
 	cmd.Stderr = os.Stderr
 	inPipe, err := cmd.StdinPipe()

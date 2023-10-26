@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pion/webrtc/v3"
+	"github.com/wmattei/go-snake/constants"
 	"github.com/wmattei/go-snake/lib/debugutil"
 	"github.com/wmattei/go-snake/lib/encodingutil"
 	signaling_server "github.com/wmattei/go-snake/lib/signalingserver"
@@ -25,7 +26,7 @@ type GameRunner struct {
 	Game      Game
 	Debugger  *debugutil.Debugger
 	Signaler  signaling_server.SignalingServer
-	CommandCh chan interface{}
+	commandCh chan interface{}
 
 	playerConnectedCallback func(player *Player)
 	player                  *Player
@@ -74,7 +75,7 @@ func NewGameRunner(game Game, options *GameRunnerOptions) *GameRunner {
 		encodedFrameCh: make(chan *webrtcutil.Streamable),
 		closeSignal:    make(chan bool),
 		gameStateCh:    make(chan interface{}),
-		CommandCh:      make(chan interface{}),
+		commandCh:      make(chan interface{}),
 	}
 }
 
@@ -83,14 +84,16 @@ func (g *GameRunner) OnPlayerJoined(callback func(player *Player)) {
 }
 
 func (g *GameRunner) StartEngine(initialGameState interface{}) {
-	// go g.Debugger.StartDebugger()
+	if constants.DEBUGGER {
+		go g.Debugger.StartDebugger()
+	}
 
 	gameLoop := &gameLoop{
 		gameState:      &initialGameState,
 		closeSignal:    g.closeSignal,
 		game:           g.Game,
 		gameStateCh:    g.gameStateCh,
-		commandChannel: g.CommandCh,
+		commandChannel: g.commandCh,
 	}
 	go gameLoop.start()
 
@@ -144,7 +147,7 @@ func (g *GameRunner) OpenLobby() {
 				track := g.Signaler.GetVideoTrack()
 				webrtcutil.StartStreaming(g.encodedFrameCh, track, g.Debugger)
 			} else {
-				g.CommandCh <- message.Data
+				g.commandCh <- message.Data
 			}
 		})
 	})
