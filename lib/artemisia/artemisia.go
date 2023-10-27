@@ -33,7 +33,7 @@ func (c *Canvas) inBounds(x, y int) bool {
 	return x >= 0 && x < c.Width && y >= 0 && y < c.Height
 }
 
-func (c *Canvas) SetPixel(x, y int, color Color) {
+func (c *Canvas) SetPixel(x, y int, color *Color) {
 	if c.inBounds(x, y) { // Check boundaries and if pixel is not set already
 		index := (y*c.Width + x) * bytesPerPixel
 		c.rawBytes[index] = color[0]
@@ -43,8 +43,7 @@ func (c *Canvas) SetPixel(x, y int, color Color) {
 	}
 }
 
-func (c *Canvas) DrawCircle(cx, cy, radius int) {
-	col := [3]byte{255, 0, 0}
+func (c *Canvas) DrawCircle(cx, cy, radius int, col *Color) {
 
 	x := radius
 	y := 0
@@ -85,14 +84,6 @@ func (c *Canvas) DrawCircle(cx, cy, radius int) {
 				c.SetPixel(cx+i, cy-x, col)
 				c.SetPixel(cx+i, cy+x, col)
 			}
-		}
-	}
-}
-
-func (c *Canvas) DrawRectangle(min, max Point, col [3]byte) {
-	for y := min.Y; y < max.Y; y++ {
-		for x := min.X; x < max.X; x++ {
-			c.SetPixel(x, y, col)
 		}
 	}
 }

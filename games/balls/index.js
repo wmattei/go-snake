@@ -7,6 +7,7 @@ let videoElement;
 let welcomePanelElement;
 
 window.onload = async function () {
+  handleCommands();
   const startBtn = document.getElementById("start_btn");
   startBtn.addEventListener("click", start);
 
@@ -116,3 +117,13 @@ function createDataChannel(peerConnection) {
   };
 }
 
+function handleCommands() {
+  document.addEventListener("click", (event) => {
+    sendCommand("NEW_BALL", {
+      mousePosition: {
+        x: event.clientX,
+        y: event.clientY,
+      },
+    });
+  });
+}

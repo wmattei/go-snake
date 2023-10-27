@@ -59,7 +59,7 @@ func (e *Encoder) markAsClosed() {
 	atomic.StoreInt32(&e.closed, 1)
 }
 
-const ffmpegBaseCommand = "ffmpeg %v -threads 0 -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -pix_fmt yuv420p -c:v h264_videotoolbox -b:v 5000k -f h264 pipe:1"
+const ffmpegBaseCommand = "ffmpeg %v -threads 0 -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -pix_fmt yuv420p -c:v h264_videotoolbox -f h264 pipe:1"
 
 func (e *Encoder) Start() {
 

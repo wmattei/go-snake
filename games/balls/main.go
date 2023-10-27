@@ -8,6 +8,13 @@ type BallsGame struct{}
 
 func (*BallsGame) UpdateGameState(gs *interface{}, command interface{}, dt int64) {
 	state := (*gs).(*gameState)
+
+	if command != nil {
+		x := command.(map[string]interface{})["mousePosition"].(map[string]interface{})["x"].(float64)
+		y := command.(map[string]interface{})["mousePosition"].(map[string]interface{})["y"].(float64)
+
+		state.newBall(x, y)
+	}
 	state.update(dt)
 
 }
