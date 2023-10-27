@@ -40,7 +40,7 @@ func NewBall(x, y int, radius float64, ground int, color *artemisia.Color) *Ball
 	}
 }
 
-const gravity = 9.8
+const gravity = 1
 
 func (b *Ball) Update(dt int64) {
 	b.Velocity.Y += float64(gravity)
