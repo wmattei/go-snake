@@ -1,6 +1,7 @@
 package gamerunner
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ type Window struct {
 type gameRenderer struct {
 	gameStateCh <-chan interface{}
 	rawFrameCh  chan<- *encodingutil.Canvas
+	closeSignal <-chan bool
 	game        Game
 	window      *Window
 	debugger    *debugutil.Debugger
@@ -32,22 +34,36 @@ func (gr *gameRenderer) start() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for gameState := range workerCh {
-				frame := gr.game.RenderFrame(&gameState, gr.window)
-				if frame == nil {
-					gr.debugger.ReportSkippedFrame()
-					continue
+			for {
+				select {
+				case gameState, ok := <-workerCh:
+					if !ok {
+						return
+					}
+					frame := gr.game.RenderFrame(&gameState, gr.window)
+					if frame == nil {
+						gr.debugger.ReportSkippedFrame()
+						continue
+					}
+					gr.debugger.ReportRenderedCanvas()
+					gr.rawFrameCh <- &encodingutil.Canvas{Data: frame, Timestamp: time.Now()}
+				case _, ok := <-gr.closeSignal:
+					if !ok {
+						return
+					}
 				}
-				gr.debugger.ReportRenderedCanvas()
-				gr.rawFrameCh <- &encodingutil.Canvas{Data: frame, Timestamp: time.Now()}
 			}
 		}()
+
 	}
 
 	for gameState := range gr.gameStateCh {
 		workerCh <- gameState
 	}
 
+	fmt.Println("Closing game renderer")
 	close(workerCh)
 	wg.Wait()
+	close(gr.rawFrameCh)
+
 }

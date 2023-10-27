@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wmattei/go-snake/constants"
@@ -25,6 +27,8 @@ type Encoder struct {
 	windowWidth    int
 	windowHeight   int
 	debugger       *debugutil.Debugger
+	closed         int32
+	wg             sync.WaitGroup
 }
 
 type EncoderOptions struct {
@@ -47,6 +51,14 @@ func NewEncoder(options *EncoderOptions) *Encoder {
 	}
 }
 
+func (e *Encoder) isClosed() bool {
+	return atomic.LoadInt32(&e.closed) == 1
+}
+
+func (e *Encoder) markAsClosed() {
+	atomic.StoreInt32(&e.closed, 1)
+}
+
 const ffmpegBaseCommand = "ffmpeg %v -threads 0 -re -f rawvideo -pixel_format rgb24 -video_size %dx%d -framerate %v -r %v -i pipe:0 -pix_fmt yuv420p -c:v h264_videotoolbox -b:v 5000k -f h264 pipe:1"
 
 func (e *Encoder) Start() {
@@ -66,12 +78,32 @@ func (e *Encoder) Start() {
 	err = cmd.Start()
 	logutil.LogFatal(err)
 
+	e.wg.Add(2)
+
 	go e.writeToFFmpeg(inPipe)
 	go e.streamToWebRTCTrack(outPipe)
+
+	go func() {
+		_, ok := <-e.closeSignal
+		if !ok {
+			e.markAsClosed()
+			fmt.Println("Closing encoder")
+
+			cmd.Wait()
+			e.wg.Wait()
+			close(e.encodedFrameCh)
+		}
+	}()
+
 }
 
 func (e *Encoder) writeToFFmpeg(inPipe io.WriteCloser) {
+	defer e.wg.Done()
+
 	for canvas := range e.canvasCh {
+		if e.isClosed() {
+			return
+		}
 		select {
 		case <-e.encodedFrameCh: // Check if there's a backlog.
 			e.debugger.ReportDroppedFrame()
@@ -86,8 +118,13 @@ func (e *Encoder) writeToFFmpeg(inPipe io.WriteCloser) {
 }
 
 func (e *Encoder) streamToWebRTCTrack(outPipe io.Reader) {
+	defer e.wg.Done()
+
 	buf := make([]byte, 1024*8)
 	for {
+		if e.isClosed() {
+			return
+		}
 		timestamp := time.Now()
 		n, err := outPipe.Read(buf)
 		if err == io.EOF {

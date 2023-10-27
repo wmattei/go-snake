@@ -68,14 +68,9 @@ func NewGameRunner(game Game, options *GameRunnerOptions) *GameRunner {
 	options = getGameRunnerOptions(options)
 
 	return &GameRunner{
-		Game:           game,
-		Debugger:       options.Debugger,
-		Signaler:       options.Signaler,
-		rawFrameCh:     make(chan *encodingutil.Canvas),
-		encodedFrameCh: make(chan *webrtcutil.Streamable),
-		closeSignal:    make(chan bool),
-		gameStateCh:    make(chan interface{}),
-		commandCh:      make(chan interface{}),
+		Game:     game,
+		Debugger: options.Debugger,
+		Signaler: options.Signaler,
 	}
 }
 
@@ -84,10 +79,6 @@ func (g *GameRunner) OnPlayerJoined(callback func(player *Player)) {
 }
 
 func (g *GameRunner) StartEngine(initialGameState interface{}) {
-	if constants.DEBUGGER {
-		go g.Debugger.StartDebugger()
-	}
-
 	gameLoop := &gameLoop{
 		gameState:      &initialGameState,
 		closeSignal:    g.closeSignal,
@@ -103,12 +94,39 @@ func (g *GameRunner) StartEngine(initialGameState interface{}) {
 		game:        g.Game,
 		window:      &g.player.Window,
 		debugger:    g.Debugger,
+		closeSignal: g.closeSignal,
 	}
 	go gameRenderer.start()
 }
 
+func (g *GameRunner) StopEngine() {
+	fmt.Println("Stopping engine")
+	close(g.closeSignal)
+
+	if constants.DEBUGGER {
+		g.Debugger.StopDebugger()
+	}
+}
+
 func (g *GameRunner) OpenLobby() {
-	g.Signaler.OnDataChannelEstablished(func(dataChannel *webrtc.DataChannel) {
+	g.Signaler.OnDataChannelEstablished(func(dataChannel *webrtc.DataChannel, pc *webrtc.PeerConnection) {
+		fmt.Println("Data channel established")
+
+		if constants.DEBUGGER {
+			go g.Debugger.StartDebugger()
+		}
+
+		g.rawFrameCh = make(chan *encodingutil.Canvas)
+		g.encodedFrameCh = make(chan *webrtcutil.Streamable)
+		g.closeSignal = make(chan bool)
+		g.gameStateCh = make(chan interface{})
+		g.commandCh = make(chan interface{})
+
+		dataChannel.OnClose(func() {
+			g.StopEngine()
+			pc.Close()
+		})
+
 		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var message GameCommand
 			err := json.Unmarshal(msg.Data, &message)

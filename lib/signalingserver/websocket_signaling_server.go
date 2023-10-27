@@ -16,7 +16,7 @@ type WebSocketSignalingServer struct {
 	jsonWriterMutex sync.Mutex
 	wsConnection    *websocket.Conn
 	peerConnection  *webrtc.PeerConnection
-	onDataChannel   func(dataChannel *webrtc.DataChannel)
+	onDataChannel   func(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection)
 }
 
 func (ws *WebSocketSignalingServer) Start() error {
@@ -80,7 +80,7 @@ func (ws *WebSocketSignalingServer) OnIceCandidateReceived(candidate webrtc.ICEC
 	return err
 }
 
-func (ws *WebSocketSignalingServer) OnDataChannelEstablished(callback func(dataChannel *webrtc.DataChannel)) {
+func (ws *WebSocketSignalingServer) OnDataChannelEstablished(callback func(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection)) {
 	ws.onDataChannel = callback
 }
 
@@ -116,13 +116,14 @@ func (ws *WebSocketSignalingServer) createPeerConnection() error {
 	}
 
 	pc, err := webrtc.NewPeerConnection(config)
+
 	if err != nil {
 		ws.writeWssMessage("error", "Error creating peer connection")
 		return err
 	}
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		if ws.onDataChannel != nil {
-			ws.onDataChannel(dc)
+			ws.onDataChannel(dc, pc)
 		}
 	})
 

@@ -11,6 +11,7 @@ import (
 const RESET_COLOR = "\x1b[0m"
 
 type Debugger struct {
+	ticker                *time.Ticker
 	frameCounter          int
 	droppedFrameCounter   int
 	skippedFrameCounter   int
@@ -41,13 +42,11 @@ func NewDebugger(intervalInMs int) *Debugger {
 }
 
 func (d *Debugger) StartDebugger() {
-	ticker := time.NewTicker(time.Duration(d.debugInterval) * time.Millisecond)
-	defer ticker.Stop()
-
-	lines := make([]string, 8) // Store the lines of statistics
+	d.ticker = time.NewTicker(time.Duration(d.debugInterval) * time.Millisecond)
+	lines := make([]string, 8)
 
 	for {
-		<-ticker.C
+		<-d.ticker.C
 
 		memStats := d.getMemoryStats()
 		lines[0] = d.getFpsStat()
@@ -64,6 +63,12 @@ func (d *Debugger) StartDebugger() {
 			fmt.Println(line)
 		}
 	}
+
+}
+
+func (d *Debugger) StopDebugger() {
+	d.ticker.Stop()
+	clearScreen()
 }
 
 func (d *Debugger) getMemoryStats() [2]string {
