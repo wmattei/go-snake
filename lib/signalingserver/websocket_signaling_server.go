@@ -16,14 +16,25 @@ type WebSocketSignalingServer struct {
 	jsonWriterMutex sync.Mutex
 	wsConnection    *websocket.Conn
 	peerConnection  *webrtc.PeerConnection
-	onDataChannel   func(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection)
+	dataChannel     *webrtc.DataChannel
+
+	onReadyCb func()
 }
 
-func (ws *WebSocketSignalingServer) Start() error {
+func NewWebSocketSignalingServer(port string, mimeType string) *WebSocketSignalingServer {
+	return &WebSocketSignalingServer{
+		Port:     port,
+		MimeType: mimeType,
+	}
+}
+
+func (ws *WebSocketSignalingServer) Connect(cb func()) error {
+	ws.onReadyCb = cb
 	ws.server = &http.Server{
 		Addr:    ":" + ws.Port,
 		Handler: http.HandlerFunc(ws.handleWebsocketConnection),
 	}
+
 	err := ws.server.ListenAndServe()
 	if err != http.ErrServerClosed {
 		logutil.LogFatal(err)
@@ -32,7 +43,22 @@ func (ws *WebSocketSignalingServer) Start() error {
 	return nil
 }
 
-func (ws *WebSocketSignalingServer) OnOfferReceived(offer webrtc.SessionDescription) error {
+func (ws *WebSocketSignalingServer) GetVideoTrack() *webrtc.TrackLocalStaticSample {
+	return ws.peerConnection.GetSenders()[0].Track().(*webrtc.TrackLocalStaticSample)
+}
+
+func (ws *WebSocketSignalingServer) GetDataChannel() *webrtc.DataChannel {
+	return ws.dataChannel
+}
+
+func (ws *WebSocketSignalingServer) Close() error {
+	ws.peerConnection.Close()
+	ws.wsConnection.Close()
+	ws.server.Close()
+	return nil
+}
+
+func (ws *WebSocketSignalingServer) onOfferReceived(offer webrtc.SessionDescription) error {
 	ws.createPeerConnection()
 	videoTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: ws.MimeType}, "video", "game")
 	if err != nil {
@@ -47,12 +73,12 @@ func (ws *WebSocketSignalingServer) OnOfferReceived(offer webrtc.SessionDescript
 	}
 
 	ws.peerConnection.SetRemoteDescription(offer)
-	ws.SendAnswer()
+	ws.sendAnswer()
 
 	return nil
 }
 
-func (ws *WebSocketSignalingServer) SendAnswer() error {
+func (ws *WebSocketSignalingServer) sendAnswer() error {
 	answer, err := ws.peerConnection.CreateAnswer(nil)
 	if err != nil {
 		logutil.LogFatal(err)
@@ -69,30 +95,15 @@ func (ws *WebSocketSignalingServer) SendAnswer() error {
 	return nil
 }
 
-func (ws *WebSocketSignalingServer) SendIceCandidate(candidate webrtc.ICECandidateInit) error {
+func (ws *WebSocketSignalingServer) sendIceCandidate(candidate webrtc.ICECandidateInit) error {
 	ws.writeWssMessage("ice", candidate.Candidate)
 	return nil
 }
 
-func (ws *WebSocketSignalingServer) OnIceCandidateReceived(candidate webrtc.ICECandidateInit) error {
+func (ws *WebSocketSignalingServer) onIceCandidateReceived(candidate webrtc.ICECandidateInit) error {
 	err := ws.peerConnection.AddICECandidate(candidate)
 	logutil.LogFatal(err)
 	return err
-}
-
-func (ws *WebSocketSignalingServer) OnDataChannelEstablished(callback func(dataChannel *webrtc.DataChannel, peerConnection *webrtc.PeerConnection)) {
-	ws.onDataChannel = callback
-}
-
-func (ws *WebSocketSignalingServer) GetVideoTrack() *webrtc.TrackLocalStaticSample {
-	return ws.peerConnection.GetSenders()[0].Track().(*webrtc.TrackLocalStaticSample)
-}
-
-func (ws *WebSocketSignalingServer) Close() error {
-	ws.peerConnection.Close()
-	ws.wsConnection.Close()
-	ws.server.Close()
-	return nil
 }
 
 var upgrader = websocket.Upgrader{
@@ -121,16 +132,19 @@ func (ws *WebSocketSignalingServer) createPeerConnection() error {
 		ws.writeWssMessage("error", "Error creating peer connection")
 		return err
 	}
-	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
-		if ws.onDataChannel != nil {
-			ws.onDataChannel(dc, pc)
-		}
-	})
 
 	pc.OnICECandidate(func(candidate *webrtc.ICECandidate) {
 		if candidate != nil {
-			ws.SendIceCandidate(candidate.ToJSON())
+			ws.sendIceCandidate(candidate.ToJSON())
 		}
+	})
+
+	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
+		ws.dataChannel = dc
+		if ws.onReadyCb != nil {
+			ws.onReadyCb()
+		}
+
 	})
 
 	ws.peerConnection = pc
@@ -168,9 +182,9 @@ func (ws *WebSocketSignalingServer) handleWebsocketConnection(w http.ResponseWri
 			}
 			switch msg.Type {
 			case "offer":
-				ws.OnOfferReceived(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: msg.Data.(string)})
+				ws.onOfferReceived(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: msg.Data.(string)})
 			case "ice":
-				ws.OnIceCandidateReceived(webrtc.ICECandidateInit{Candidate: msg.Data.(string)})
+				ws.onIceCandidateReceived(webrtc.ICECandidateInit{Candidate: msg.Data.(string)})
 			}
 		}
 	}()

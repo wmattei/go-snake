@@ -1,18 +1,16 @@
 package gamerunner
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/wmattei/go-snake/constants"
 )
 
 type gameLoop struct {
-	gameState      *interface{}
-	closeSignal    <-chan bool
-	game           Game
-	gameStateCh    chan<- interface{}
-	commandChannel chan interface{}
+	closeSignal  <-chan bool
+	game         Game
+	gameContext  *GameContext
+	gameRenderer *gameRenderer
 }
 
 func (gl *gameLoop) start() {
@@ -24,17 +22,14 @@ func (gl *gameLoop) start() {
 		select {
 		case _, ok := <-gl.closeSignal:
 			if !ok {
-				break
+				return
 			}
-		case command := <-gl.commandChannel:
-			gl.game.UpdateGameState(gl.gameState, command, frameDuration.Milliseconds())
 		case <-ticker.C:
-			gl.game.UpdateGameState(gl.gameState, nil, frameDuration.Milliseconds())
-			gl.gameStateCh <- *gl.gameState
+
+			gl.game.Update(gl.gameContext)
+			gl.gameRenderer.render(gl.gameContext.width, gl.gameContext.height)
+			gl.gameContext.inputState.setPrevState()
+
 		}
 	}
-
-	fmt.Println("Stopping game loop")
-	close(gl.gameStateCh)
-	close(gl.commandChannel)
 }

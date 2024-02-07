@@ -1,41 +1,50 @@
 package main
 
 import (
+	"math/rand"
+
+	"github.com/wmattei/go-snake/games/balls/ball"
+	"github.com/wmattei/go-snake/lib/artemisia"
 	"github.com/wmattei/go-snake/lib/gamerunner"
 )
 
-type BallsGame struct{}
+type BallsGame struct {
+	dt    int64
+	balls []*ball.Ball
+}
 
-func (*BallsGame) UpdateGameState(gs *interface{}, command interface{}, dt int64) {
-	state := (*gs).(*gameState)
+var colors = []*artemisia.Color{
+	{255, 0, 0},
+	{255, 255, 0},
+	{0, 255, 0},
+	{0, 255, 255},
+	{0, 0, 255},
+	{255, 0, 255},
+}
 
-	if command != nil {
-		x := command.(map[string]interface{})["mousePosition"].(map[string]interface{})["x"].(float64)
-		y := command.(map[string]interface{})["mousePosition"].(map[string]interface{})["y"].(float64)
+func (game *BallsGame) Update(ctx *gamerunner.GameContext) {
+	if ctx.IsMouseButtonJustPressed(0) {
+		radius := rand.Intn(50) + 10
+		colorIdx := rand.Intn(len(colors))
 
-		state.newBall(x, y)
+		mouseX, mouseY := ctx.GetMousePosition()
+		_, height := ctx.GetScreenBounds()
+		game.balls = append(game.balls, ball.NewBall(mouseX, mouseY, float64(radius), height-radius, colors[colorIdx]))
 	}
-	state.update(dt)
-
+	game.dt++
+	for _, ball := range game.balls {
+		ball.Update(game.dt)
+	}
 }
 
-func (*BallsGame) RenderFrame(gs *interface{}, window *gamerunner.Window) []byte {
-	return renderFrame((*gs).(*gameState), window.Width, window.Height)
-}
-
-func (*BallsGame) GetMetadata() *gamerunner.GameMetadata {
-	return &gamerunner.GameMetadata{
-		GameName: "Balls",
+func (game *BallsGame) RenderFrame(frame *artemisia.Frame) {
+	for _, ball := range game.balls {
+		frame.DrawCircle(ball.Position.X, ball.Position.Y, int(ball.Radius), ball.Color)
 	}
 }
 
 func main() {
-	gameRunner := gamerunner.NewGameRunner(&BallsGame{}, nil)
-
-	gameRunner.OnPlayerJoined(func(player *gamerunner.Player) {
-		initialGameState := newGameState(player.Window.Width, player.Window.Height)
-		gameRunner.StartEngine(initialGameState)
-	})
-
-	gameRunner.OpenLobby()
+	game := &BallsGame{}
+	gameRunner := gamerunner.NewGameRunner(game)
+	gameRunner.RunAfterResize()
 }

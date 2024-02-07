@@ -7,7 +7,6 @@ let videoElement;
 let welcomePanelElement;
 
 window.onload = async function () {
-  handleCommands();
   const startBtn = document.getElementById("start_btn");
   startBtn.addEventListener("click", start);
 
@@ -24,6 +23,7 @@ async function start() {
     // Initialize peer connection and data channel
     peerConnection = new RTCPeerConnection();
     createDataChannel(peerConnection);
+    handleCommands();
 
     peerConnection.onicecandidate = handleIceCandidateEvent;
     peerConnection.ontrack = handleTrackEvent;
@@ -91,7 +91,13 @@ const handleAnswerMessage = async (answerData) => {
 };
 
 function sendCommand(type, data) {
-  dataChannel.send(JSON.stringify({ type, data }));
+  const typeMap = {
+    RESIZE: 8,
+    CLICK: 6,
+    RELEASE: 7,
+    MOVE: 5,
+  };
+  dataChannel.send(JSON.stringify({ type: typeMap[type], data }));
 }
 
 function createDataChannel(peerConnection) {
@@ -103,7 +109,7 @@ function createDataChannel(peerConnection) {
   };
 
   dataChannel.onopen = () => {
-    sendCommand("ping", {
+    sendCommand("RESIZE", {
       width: window.innerWidth,
       height: window.innerHeight,
     });
@@ -118,12 +124,20 @@ function createDataChannel(peerConnection) {
 }
 
 function handleCommands() {
-  document.addEventListener("click", (event) => {
-    sendCommand("NEW_BALL", {
-      mousePosition: {
-        x: event.clientX,
-        y: event.clientY,
-      },
+  document.addEventListener("mousedown", (event) => {
+    sendCommand("CLICK", {
+      button: event.button,
+    });
+  });
+  document.addEventListener("mouseup", (event) => {
+    sendCommand("RELEASE", {
+      button: event.button,
+    });
+  });
+  document.addEventListener("mousemove", (event) => {
+    sendCommand("MOVE", {
+      x: event.clientX,
+      y: event.clientY,
     });
   });
 }
