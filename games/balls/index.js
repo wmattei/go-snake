@@ -140,4 +140,10 @@ function handleCommands() {
       y: event.clientY,
     });
   });
+  window.addEventListener("resize", () => {
+    sendCommand("RESIZE", {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+  });
 }

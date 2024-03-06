@@ -20,34 +20,38 @@ type Canvas struct {
 	Timestamp time.Time
 }
 
+type Dimensions struct {
+	Width  int
+	Height int
+}
+
 type Encoder struct {
 	encodedFrameCh chan *webrtcutil.Streamable
 	canvasCh       <-chan *Canvas
 	closeSignal    <-chan bool
-	windowWidth    int
-	windowHeight   int
 	debugger       *debugutil.Debugger
 	closed         int32
 	wg             sync.WaitGroup
+
+	dimensionsChannel <-chan *Dimensions
+	cmd               *exec.Cmd
 }
 
 type EncoderOptions struct {
 	EncodedFrameChannel chan *webrtcutil.Streamable
 	CanvasChannel       <-chan *Canvas
 	CloseSignal         <-chan bool
-	WindowWidth         int
-	WindowHeight        int
 	Debugger            *debugutil.Debugger
+	DimensionsChannel   <-chan *Dimensions
 }
 
 func NewEncoder(options *EncoderOptions) *Encoder {
 	return &Encoder{
-		encodedFrameCh: options.EncodedFrameChannel,
-		canvasCh:       options.CanvasChannel,
-		closeSignal:    options.CloseSignal,
-		debugger:       options.Debugger,
-		windowWidth:    options.WindowWidth,
-		windowHeight:   options.WindowHeight,
+		encodedFrameCh:    options.EncodedFrameChannel,
+		canvasCh:          options.CanvasChannel,
+		closeSignal:       options.CloseSignal,
+		debugger:          options.Debugger,
+		dimensionsChannel: options.DimensionsChannel,
 	}
 }
 
@@ -68,40 +72,55 @@ func (e *Encoder) Start() {
 		debug = ""
 	}
 
-	ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, debug, e.windowWidth, e.windowHeight, constants.FPS, constants.FPS)
-	cmd := exec.Command("bash", "-c", ffmpegCommand)
-	cmd.Stderr = os.Stderr
-	inPipe, err := cmd.StdinPipe()
-	logutil.LogFatal(err)
-	outPipe, err := cmd.StdoutPipe()
-	logutil.LogFatal(err)
-	err = cmd.Start()
-	logutil.LogFatal(err)
-
-	e.wg.Add(2)
-
-	go e.writeToFFmpeg(inPipe)
-	go e.streamToWebRTCTrack(outPipe)
-
 	go func() {
 		_, ok := <-e.closeSignal
 		if !ok {
 			e.markAsClosed()
 			fmt.Println("Closing encoder")
 
-			cmd.Wait()
 			e.wg.Wait()
+			e.cmd.Process.Kill()
 			close(e.encodedFrameCh)
 		}
 	}()
 
+	for dimensions := range e.dimensionsChannel {
+		if e.cmd != nil {
+			fmt.Println("DIM CHANGED")
+			e.markAsClosed()
+
+			e.cmd.Process.Kill()
+			e.wg.Wait()
+			fmt.Println("Closing encoder")
+		}
+
+		ffmpegCommand := fmt.Sprintf(ffmpegBaseCommand, debug, dimensions.Width, dimensions.Height, constants.FPS, constants.FPS)
+		e.cmd = exec.Command("bash", "-c", ffmpegCommand)
+		e.cmd.Stderr = os.Stderr
+		inPipe, err := e.cmd.StdinPipe()
+		logutil.LogFatal(err)
+		outPipe, err := e.cmd.StdoutPipe()
+		logutil.LogFatal(err)
+		err = e.cmd.Start()
+		logutil.LogFatal(err)
+
+		e.wg.Add(2)
+
+		go e.writeToFFmpeg(inPipe)
+		go e.streamToWebRTCTrack(outPipe)
+
+	}
+
 }
 
 func (e *Encoder) writeToFFmpeg(inPipe io.WriteCloser) {
-	defer e.wg.Done()
+	defer func() {
+		fmt.Println("EXIT WRITE")
+		e.wg.Done()
+	}()
 
 	for canvas := range e.canvasCh {
-		if e.isClosed() {
+		if e.closed == 1 {
 			return
 		}
 		select {
@@ -118,11 +137,14 @@ func (e *Encoder) writeToFFmpeg(inPipe io.WriteCloser) {
 }
 
 func (e *Encoder) streamToWebRTCTrack(outPipe io.Reader) {
-	defer e.wg.Done()
+	defer func() {
+		fmt.Println("EXIT STREAM")
+		e.wg.Done()
+	}()
 
 	buf := make([]byte, 1024*8)
 	for {
-		if e.isClosed() {
+		if e.closed == 1 {
 			return
 		}
 		timestamp := time.Now()

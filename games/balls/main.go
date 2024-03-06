@@ -23,16 +23,17 @@ var colors = []*artemisia.Color{
 }
 
 func (game *BallsGame) Update(ctx *gamerunner.GameContext) {
+	game.dt++
+	_, height := ctx.GetScreenBounds()
 	if ctx.IsMouseButtonJustPressed(0) {
 		radius := rand.Intn(50) + 10
 		colorIdx := rand.Intn(len(colors))
 
 		mouseX, mouseY := ctx.GetMousePosition()
-		_, height := ctx.GetScreenBounds()
 		game.balls = append(game.balls, ball.NewBall(mouseX, mouseY, float64(radius), height-radius, colors[colorIdx]))
 	}
-	game.dt++
 	for _, ball := range game.balls {
+		ball.Ground = height - int(ball.Radius)
 		ball.Update(game.dt)
 	}
 }
@@ -46,5 +47,6 @@ func (game *BallsGame) RenderFrame(frame *artemisia.Frame) {
 func main() {
 	game := &BallsGame{}
 	gameRunner := gamerunner.NewGameRunner(game)
+
 	gameRunner.RunAfterResize()
 }

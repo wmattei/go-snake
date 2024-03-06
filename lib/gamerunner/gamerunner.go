@@ -2,11 +2,13 @@ package gamerunner
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/wmattei/go-snake/lib/artemisia"
 	"github.com/wmattei/go-snake/lib/debugutil"
 	"github.com/wmattei/go-snake/lib/encodingutil"
+	"github.com/wmattei/go-snake/lib/internal"
 	signaling_server "github.com/wmattei/go-snake/lib/signalingserver"
 	"github.com/wmattei/go-snake/lib/webrtcutil"
 )
@@ -21,14 +23,16 @@ type Game interface {
 }
 
 type GameRunner struct {
-	Game     Game
-	Debugger *debugutil.Debugger
-	Signaler signaling_server.SignalingServer
+	game     Game
+	debugger *debugutil.Debugger
+	signaler signaling_server.SignalingServer
 
 	rawFrameCh     chan *encodingutil.Canvas
 	encodedFrameCh chan *webrtcutil.Streamable
 	closeSignal    chan bool
-	gameStateCh    chan interface{}
+
+	dimensionsCh chan *encodingutil.Dimensions
+	running      bool
 }
 
 type GameRunnerOptions struct {
@@ -55,25 +59,27 @@ func NewGameRunner(game Game) *GameRunner {
 
 func NewGameRunnerWithOptions(game Game, options *GameRunnerOptions) *GameRunner {
 	options = getGameRunnerOptions(options)
+	dimCh := make(chan *encodingutil.Dimensions)
 	return &GameRunner{
-		Game:           game,
-		Debugger:       options.Debugger,
-		Signaler:       options.Signaler,
+		game:           game,
+		debugger:       options.Debugger,
+		signaler:       options.Signaler,
 		encodedFrameCh: make(chan *webrtcutil.Streamable),
 		rawFrameCh:     make(chan *encodingutil.Canvas),
+		dimensionsCh:   dimCh,
 	}
 }
 
 func (g *GameRunner) run(gameContext *GameContext) {
-	if g.Debugger != nil {
-		go g.Debugger.StartDebugger()
+	if g.debugger != nil {
+		// go g.debugger.StartDebugger()
 	}
 
-	gameRenderer := newGameRenderer(g.Game, g.rawFrameCh)
-	gameRenderer.debugger = g.Debugger
+	gameRenderer := newGameRenderer(g.game, g.rawFrameCh)
+	gameRenderer.debugger = g.debugger
 	gameLoop := &gameLoop{
 		closeSignal:  g.closeSignal,
-		game:         g.Game,
+		game:         g.game,
 		gameContext:  gameContext,
 		gameRenderer: gameRenderer,
 	}
@@ -83,37 +89,41 @@ func (g *GameRunner) run(gameContext *GameContext) {
 		EncodedFrameChannel: g.encodedFrameCh,
 		CanvasChannel:       g.rawFrameCh,
 		CloseSignal:         g.closeSignal,
-		Debugger:            g.Debugger,
-		WindowHeight:        gameContext.height,
-		WindowWidth:         gameContext.width,
+		Debugger:            g.debugger,
+		DimensionsChannel:   internal.Debounce(g.dimensionsCh, time.Second),
 	})
 	go encoder.Start()
 
-	track := g.Signaler.GetVideoTrack()
-	webrtcutil.StartStreaming(g.encodedFrameCh, track, g.Debugger)
+	track := g.signaler.GetVideoTrack()
+	webrtcutil.StartStreaming(g.encodedFrameCh, track, g.debugger)
 
 }
 
 func (g *GameRunner) RunAfterResize() {
-	g.Signaler.Connect(func() {
+	g.signaler.Connect(func() {
 		gameContext := NewGameContext()
-		dataChannel := g.Signaler.GetDataChannel()
+		dataChannel := g.signaler.GetDataChannel()
 
 		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var message Command
 			json.Unmarshal(msg.Data, &message)
 			gameContext.handleCommand(&message)
+
 			if message.Type == Resize {
-				g.run(gameContext)
+				if !g.running {
+					g.run(gameContext)
+					g.running = true
+				}
+				g.dimensionsCh <- &encodingutil.Dimensions{Width: gameContext.width, Height: gameContext.height}
 			}
 		})
 	})
 }
 
 func (g *GameRunner) Run() {
-	g.Signaler.Connect(func() {
+	g.signaler.Connect(func() {
 		gameContext := NewGameContext()
-		dataChannel := g.Signaler.GetDataChannel()
+		dataChannel := g.signaler.GetDataChannel()
 
 		g.run(gameContext)
 
@@ -121,80 +131,10 @@ func (g *GameRunner) Run() {
 			var message Command
 			json.Unmarshal(msg.Data, &message)
 			gameContext.handleCommand(&message)
+
+			if message.Type == Resize {
+				g.dimensionsCh <- &encodingutil.Dimensions{Width: gameContext.width, Height: gameContext.height}
+			}
 		})
 	})
 }
-
-// func (g *GameRunner) StopEngine() {
-// 	fmt.Println("Stopping engine")
-// 	close(g.closeSignal)
-
-// 	if constants.DEBUGGER {
-// 		g.Debugger.StopDebugger()
-// 	}
-// }
-
-// func (g *GameRunner) OpenLobby() {
-// 	g.Signaler.OnDataChannelEstablished(func(dataChannel *webrtc.DataChannel, pc *webrtc.PeerConnection) {
-// 		fmt.Println("Data channel established")
-
-// 		if constants.DEBUGGER {
-// 			go g.Debugger.StartDebugger()
-// 		}
-
-// 		g.rawFrameCh = make(chan *encodingutil.Canvas)
-// 		g.encodedFrameCh = make(chan *webrtcutil.Streamable)
-// 		g.closeSignal = make(chan bool)
-// 		g.gameStateCh = make(chan interface{})
-// 		g.commandCh = make(chan interface{})
-
-// 		dataChannel.OnClose(func() {
-// 			g.StopEngine()
-// 			pc.Close()
-// 		})
-
-// 		dataChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
-// 			var message GameCommand
-// 			err := json.Unmarshal(msg.Data, &message)
-// 			if err != nil {
-// 				fmt.Println("Error unmarshalling message:", err)
-// 				return
-// 			}
-
-// 			if message.Type == "ping" {
-// 				fmt.Println("Received ping")
-// 				windowWidth := int(message.Data.(map[string]interface{})["width"].(float64))
-// 				windowHeight := int(message.Data.(map[string]interface{})["height"].(float64))
-
-// 				g.player = &Player{
-// 					ID: "123",
-// 					Window: Window{
-// 						Width:  windowWidth,
-// 						Height: windowHeight,
-// 					},
-// 				}
-
-// 				if g.playerConnectedCallback != nil {
-// 					g.playerConnectedCallback(g.player)
-// 				}
-
-// 				encoder := encodingutil.NewEncoder(&encodingutil.EncoderOptions{
-// 					EncodedFrameChannel: g.encodedFrameCh,
-// 					CanvasChannel:       g.rawFrameCh,
-// 					CloseSignal:         g.closeSignal,
-// 					Debugger:            g.Debugger,
-// 					WindowHeight:        windowHeight,
-// 					WindowWidth:         windowWidth,
-// 				})
-// 				encoder.Start()
-
-// 				track := g.Signaler.GetVideoTrack()
-// 				webrtcutil.StartStreaming(g.encodedFrameCh, track, g.Debugger)
-// 			} else {
-// 				g.commandCh <- message.Data
-// 			}
-// 		})
-// 	})
-
-// 	g.Signaler.Start()
-// }
